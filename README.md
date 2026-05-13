@@ -22,8 +22,8 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them 
 <a href="#-building-from-source">🛠️ Building from Source</a> • 
 <a href="#-mod-xml-format">📄 Mod XML Format</a> • 
 <a href="#-how-it-works">🔬 How It Works</a> • 
-<a href="#-supported-part-categories">🌟 Supported Part Categories</a> • 
-<a href="#-usage-examples">📖 Usage Examples</a> • 
+<a href="#-part-types">🌟 Part Types</a> • 
+<a href="#-usage-notes">📖 Usage Notes</a> • 
 <a href="#-troubleshooting">🐛 Troubleshooting</a> • 
 <a href="#-credits">©️ Credits</a>
 
@@ -33,12 +33,12 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them 
 ## ✨ Features
 
 - ✅ **Drop-in Installation**: Single `version.dll` proxy, no BepInEx or MelonLoader required
-- ✅ **All Part Categories**: Supports every part type the game uses - RAM, CPU, GPU, Storage, PSU, Motherboard & [much more](#-supported-part-categories)
+- ✅ **All Part Categories**: Supports every part type the game uses - RAM, CPU, GPU, Storage, PSU, Motherboard & [much more](#-part-types)
 - ✅ **Native Behavior**: Reuses the game's own `ImportProp` and `AddNewPart` methods, so injected parts behave identically to vanilla ones
 - ✅ **Companion Tool**: XML files can be generated visually with [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102)
 - ✅ **Safe Injection**: SEH-guarded database calls prevent a malformed mod from crashing the game
 - ✅ **Detailed Logging**: Per-mod status written to `PCBS2.XPL.log` next to the executable
-- ✅ **Optional Chain-Load**: Loads [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator/tree/main) `version.dll` automatically when present, allowing both mods to coexist on the same `version.dll` slot
+- ✅ **Optional Chain-Load**: Loads [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator) `version.dll` automatically when present, allowing both mods to coexist on the same `version.dll` slot
 
 
 ## 🔧 Requirements
@@ -57,7 +57,7 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them 
    Default Epic Games path: `...\Epic Games\PCBuildingSimulator2\`
 3. Launch the game once. **PCBS2.XPL** will create a `mods/` folder in the same directory if it doesn't exist.
 
-> **Note**If you already have [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator/tree/main) installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place **PCBS2.XPL** as the new `version.dll`. **PCBS2.XPL** will chain-load JellysSockets automatically - see [Scenario 4](#scenario-4-co-existing-with-jellyssockets).
+> **Note**If you already have [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator) installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place **PCBS2.XPL** as the new `version.dll`. **PCBS2.XPL** will chain-load JellysSockets automatically - see [Note 6](#note-6-running-alongside-jellys-socket-creator).
 
 
 ### Step 2: Add Mod Files
@@ -146,155 +146,225 @@ AirCooledGPU_AMD AMD FirePro S9170 32GB
 - **Duplicates**: If the same `ID` appears in multiple files, the first occurrence wins
 
 
-### Supported Part Types
-
-| Category        | Accepted `Part Type` values                                            |
-|-----------------|------------------------------------------------------------------------|
-| Core components | `GPU`, `CPU`, `RAM`, `Motherboard`, `PSU`, `Case`                      |
-| Storage         | `Storage`, `HDD`, `SSD`, `M2`, `M.2` (all map to Storage internally)   |
-| Cooling         | `Cooler`, `AirCooler`, `LiquidCooler` (the latter two map to Cooler)   |
-| Water cooling   | `CPUBlock`, `GPUBlock`, `MotherboardBlock`, `MemoryBlock`, `Pump`, `Reservoir`, `PumpReservoir`, `Coolant` |
-| Peripherals     | `Monitor`, `Keyboard`, `Mouse`, `MousePad`, `Headset`, `Microphone`    |
-| Connectivity    | `Cable`, `CableConnector`, `Pipe`, `PipeConnector`                     |
-| Accessories     | `Tool`, `Decoration`, `LEDStrip`, `RamHeatsink`, `PowerSplitter`, `PowerAdapter` |
-
-
 ## 🔬 How It Works
-
-PCBS2.XPL is a proxy DLL that hijacks the Windows loader to get code execution inside the game process, then uses MinHook to intercept the game's own part-loading code.
-
-1. **Proxy Load**: The game loads `version.dll` from its install directory before falling back to the system one. PCBS2.XPL forwards every export to `C:\Windows\System32\version.dll` so the game sees a functional API.
-2. **IL2CPP Bootstrap**: A background thread waits for `GameAssembly.dll`, then resolves the IL2CPP API (`il2cpp_domain_get`, `il2cpp_class_from_name`, etc.) from it.
-3. **Hook Installation**: MinHook installs detours on `ImportProp` for every `PartDesc*` class (`PartDescGPU`, `PartDescCPU`, ...). Several PartDesc classes share a compiled ImportProp body — those cases are detected and reuse the same trampoline.
-4. **Mod Loading**: XML files in `mods/` are parsed into in-memory `ModPart` structures and queued.
-5. **Injection**: When the game first calls any `ImportProp` during its own part loading, the matching detour fires, constructs the corresponding `PartDesc*` object, runs `ImportProp` for each property of every queued mod of that type, and registers the result via `PartsDatabase.AddNewPart`.
-
+ 
+PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses [MinHook](https://github.com/TsudaKageyu/minhook) to intercept the game's own part-loading code and inject mod XMLs through it.
+ 
+1. **Proxy Load**: PCBS2.XPL is named `version.dll` and placed next to `PCBS2.exe`. Windows loads DLLs from the program's own folder before the system folder, so the game loads PCBS2.XPL instead of the real one. All exports are forwarded to `C:\Windows\System32\version.dll`.
+2. **Wait for the Game**: A background thread waits for `GameAssembly.dll` to load, then resolves the IL2CPP runtime API used to look up game classes by name.
+3. **Install Hooks**: MinHook places a detour on the `ImportProp` method of every `PartDesc*` class. Several PartDesc classes share the same compiled `ImportProp` body - those reuse the existing trampoline.
+4. **Read Mods**: XML files in `mods/` are parsed and queued in memory.
+5. **Injection**: The first time the game calls `ImportProp` on a part of a given type, the detour fires. PCBS2.XPL constructs a new `PartDesc*` for each queued mod of that type, replays every property through the original `ImportProp`, and registers the finished part via `PartsDatabase.AddNewPart`.
 
 ### Technical Flow
-
-```text
-Game starts
-    ↓
-Windows loads version.dll (PCBS2.XPL)
-    ↓
-MainThread waits for GameAssembly.dll
-    ↓
-IL2CPP API resolved, MinHook installed
-    ↓
-mods/*.xml parsed into ModPart queue
-    ↓
-Game begins its own part loading (calls ImportProp)
-    ↓
-Detour fires, constructs PartDesc*, replays ImportProp per property
-    ↓
-PartsDatabase.AddNewPart registers the mod
-    ↓
-Game continues, mod appears in catalog
+ 
+```
+   ┌─────────────────────────────────────────────────────────────┐
+   │  Setup Phase                                                │
+   ├─────────────────────────────────────────────────────────────┤
+   │                                                             │
+   │     Game starts                                             │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Windows loads version.dll (PCBS2.XPL)                   │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Wait for GameAssembly.dll                               │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Resolve IL2CPP runtime                                  │
+   │         │                                                   │
+   │         ├─────────────────────────┐                         │
+   │         ▼                         ▼                         │
+   │     Parse mods/*.xml         Install MinHook                │
+   │     into queue               detours on ImportProp          │
+   │                                                             │
+   └─────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+   ┌─────────────────────────────────────────────────────────────┐
+   │  Injection Phase                                            │
+   ├─────────────────────────────────────────────────────────────┤
+   │                                                             │
+   │     Game calls ImportProp on a vanilla part                 │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Detour fires (once per part type)                       │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     For each queued mod of this type:                       │
+   │       • new PartDesc*()                                     │
+   │       • replay properties via original ImportProp           │
+   │       • PartsDatabase.AddNewPart(id, part)                  │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Original ImportProp continues                           │
+   │                                                             │
+   └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🌟 Supported Part Categories
+## 🌟 Part Types
 
+### Supported Part Type values
+| Category        | Accepted `Part Type` values                                                       |
+|-----------------|-----------------------------------------------------------------------------------|
+| Core components | `GPU`, `WaterCooledGPU`, `CPU`, `RAM`, `Motherboard`, `PSU`, `Case`               |
+| Storage         | `Storage`, `HDD`, `SSD`, `M2`, `M.2`                                              |
+| Cooling         | `Cooler`, `AirCooler`, `Air Cooler`, `LiquidCooler`, `Liquid Cooler`              |
+| Water cooling   | `CPUBlock`, `GPUBlock`, `MotherboardBlock`, `MemoryBlock`, `Pump`, `Reservoir`, `PumpReservoir`, `Coolant` |
+| Peripherals     | `Monitor`, `Keyboard`, `Mouse`, `MousePad`, `Mousepad`, `Headset`, `Microphone`   |
+| Connectivity    | `Cable`, `CableConnector`, `CableConnectors`, `Pipe`, `Pipes`, `PipeConnector`, `PipeConnectors` |
+| Accessories     | `Tool`, `Decoration`, `LEDStrip`, `RamHeatsink`, `PowerSplitter`, `PowerAdapter`  |
 
-## 📖 Usage Examples
+### ⚠️ Currently Unsupported Part Type values
+The following part types are recognized by PCBS2 Part Creator but cannot be injected through PCBS2.XPL, because the game does not load them via its `ImportProp` mechanism:
+ 
+- **Case Fan**, **Radiator**, **Pipes** - these exist in-game only as Unity components, not as standalone XML-loadable part definitions.
+- **Program**, **USB Drive**, **Tool Upgrade** - handled internally as specialized `Tool` variants or as Unity prefabs; they have no dedicated `PartDesc` class with an `ImportProp` method.
 
-### Scenario 1: Add a Custom GPU
+If a mod XML uses one of these types, the file will be parsed but no matching hook will fire, and the part will silently not appear in-game.  
+The log will show `[+] Loaded: <id> (<type>)` but no corresponding `[+] Injected: <id>` line.  
+For these part types, use PCBS2 Part Creator's direct patch mode (which writes to the game's `.assets` files) instead of the XML mod loader.
 
-You want to add a fictional RTX 9090 GPU to the game catalog.
-
-**Solution**: Create `mods/RTX9090.xml` using PCBS2 Part Creator (or manually), set `Part Type` to `GPU` and `ID` to something unique like `MyCustomCard_RTX9090`. Drop it into `mods/` and launch the game.
-
-
-### Scenario 2: Add Multiple Parts at Once
-
-You're shipping a parts pack with five GPUs, three CPUs, and a custom case.
-
-**Solution**: Place all nine `.xml` files into `mods/`. PCBS2.XPL loads every `.xml` file it finds — no manifest or installer needed. Each file's `Part Type` determines which hook handles it.
-
-
-### Scenario 3: Storage Variants
-
-You have an XML that was authored as an SSD but the game internally only has one Storage category.
-
-**Solution**: Use `Part Type = SSD`, `HDD`, `M2`, or `M.2` in the XML — all four are normalized to the `Storage` category automatically. No need to rewrite existing files when porting between authors.
-
-
-### Scenario 4: Co-existing With JellysSockets
-
-You already use JellysSockets and don't want to lose it. Both JellysSockets and PCBS2.XPL ship as `version.dll`, so they can't both occupy that slot directly.
-
-**Solution**: Keep PCBS2.XPL as `version.dll` in the game directory, and rename the JellysSockets DLL to `JellysSockets.dll` in the same folder. On startup PCBS2.XPL detects `JellysSockets.dll` next to itself and chain-loads it, so both mods run side by side.
+## 📖 Usage Notes
+ 
+This section is for mod authors and players setting up a `mods/` folder for the first time. If you only want to use existing mods, follow the [Installation](#-installation) steps - the notes below cover common questions that come up during authoring and distribution.
+ 
+ 
+### Note 1: Adding a Single Part
+ 
+Place `mods/MyCustomGPU.xml` in the mods folder. The filename doesn't matter - PCBS2.XPL identifies parts by their `ID` field.  
+Launch the game and the part appears in the shop and inventory.
+ 
+ 
+### Note 2: One Part Per File
+ 
+PCBS2.XPL expects exactly one part per XML file. The parser walks every `<td div="...">value</td>` tag in the file and merges all properties into a single part  
+If a file contains multiple `<tr>` blocks, the later `ID` and `Part Type` values overwrite the earlier ones, and only the last part is loaded.  
+For multiple parts, use multiple files: one `.xml` per part.
+ 
+ 
+### Note 3: Shipping a Parts Pack
+ 
+Drop all `.xml` files into `mods/` - no manifest, no installer, no load order. Each file's `Part Type` decides which hook handles it.  
+To distribute the pack, zip the XMLs and let users extract them into their own `mods/` folder.
+ 
+ 
+### Note 4: Storage Variants
+ 
+The game has a single `Storage` category internally, but PCBS2 Part Creator exports SSDs, HDDs, and M.2 drives with distinct `Part Type` values.  
+All four (`SSD`, `HDD`, `M2`, `M.2`) are normalized to `Storage` on load, so XMLs from any source work without rewriting.
+ 
+ 
+### Note 5: Water-Cooled GPUs
+ 
+PCBS2 has no separate `PartDescWaterCooledGPU` class - water-cooled GPUs use the regular `GPU` class with extra properties.  
+`Part Type = WaterCooledGPU` is normalized to `GPU` automatically, so PCBS2 Part Creator exports work directly.
+ 
+ 
+### Note 6: Running Alongside Jelly's Socket Creator
+ 
+[Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator) also ships as `version.dll`, so both mods compete for the same slot.  
+Keep PCBS2.XPL as `version.dll`, rename the Jelly's Socket Creator DLL to `JellysSockets.dll` in the same folder.  
+PCBS2.XPL chain-loads it on startup - both run side by side.
+ 
+ 
+### Note 7: Updating or Removing Mods
+ 
+Modded parts are loaded fresh on every launch, so updating a mod is just replacing its XML file. Removing a mod is deleting the XML.  
+Save files reference parts by `ID`, so if a save was made with a modded part and the mod is later removed, the save will fail to load that specific part - keep `ID`s stable across updates.
+ 
+ 
+### Note 8: Duplicate IDs Across Files
+ 
+If two XML files declare the same `ID`, only the first one loaded wins.  
+The duplicate is logged as `[-] Duplicate mod ID: <id> (<filename>) - skipped` and ignored.  
+File load order is determined by Windows' `FindFirstFile`, which is not strictly alphabetical - for predictable behavior, ensure every mod uses a unique `ID`.
 
 
 ## 🐛 Troubleshooting
-
+ 
+Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check it first - the prefixes (`[+]` success, `[~]` info, `[!]` warning, `[-]` error) indicate the severity of each event. If the log doesn't help, the categories below cover the common failure modes.
+ 
+ 
 ### Game Doesn't Start
-
-**Symptoms**: Game window flashes and closes, or doesn't launch at all.
-
+ 
+**Symptoms**: Game window flashes and closes, or doesn't launch at all. No `PCBS2.XPL.log` is created.
+ 
 **Solutions**:
+ 
+- Verify `version.dll` is directly next to `PCBS2.exe`, not in a subfolder
+- Confirm the build matches your platform - only an x64 build exists, 32-bit Windows is not supported
+- Install the [Visual C++ Redistributable 2015-2026](https://visualstudio.microsoft.com/de/downloads/)
+- Temporarily rename `version.dll` to confirm it's the cause. If the game still doesn't start, the issue is unrelated to PCBS2.XPL
+- Antivirus software sometimes quarantines unknown DLLs in game directories — check the quarantine folder
 
-- Verify `version.dll` is in the game directory, not in a subfolder
-- Make sure you downloaded the x64 build (the only build that exists)
-- Check that the Visual C++ Redistributable 2015–2022 is installed
-- Temporarily remove `version.dll` to confirm it's the cause
-
-
-### No Log File Created
-
-**Symptoms**: `PCBS2.XPL.log` doesn't appear after launching the game.
-
+### No Log File Is Created
+ 
+**Symptoms**: Game launches normally, but `PCBS2.XPL.log` doesn't appear.
+ 
 **Solutions**:
+ 
+- The proxy isn't loading. Verify the filename is exactly `version.dll`, not `version (1).dll` or similar
+- The game folder must be writable. Epic Games libraries under `Program Files` may require running the game once as administrator, or moving the library to a user-writable location
+- A leftover `JellysSockets.dll` from a previous mod can also occupy the slot - see [Note 6](#note-6-running-alongside-jellys-socket-creator)
 
-- PCBS2.XPL isn't loading. Verify `version.dll` is next to `PCBuildingSimulator2.exe`
-- Some antivirus tools quarantine unknown DLLs in game directories — check quarantine
-- Make sure the game folder is writable (avoid Program Files if possible, or run once as admin)
-
-
-### Mods Not Appearing In-Game
-
-**Symptoms**: Game loads, log shows `[+] Ready`, but mods don't show up in the catalog.
-
+### Mods Don't Appear In-Game
+ 
+**Symptoms**: The log shows `[+] Ready` and `[+] Total mods: N`, but the modded parts aren't visible in the shop or inventory.
+ 
 **Solutions**:
+ 
+1. **Check for `[+] Injected:` lines**. If a mod appears as `[+] Loaded:` but never `[+] Injected:`, its part type has no matching hook - typically because the type isn't supported (see [Currently Unsupported Part Type values](#-currently-unsupported-part-type-values))
+2. **Verify `Part Type` spelling**. Values are case-sensitive: `gpu` is not recognized, `GPU` is. PCBS2 Part Creator's spaced variants like `Air Cooler` are accepted, see [Supported Part Type values](#supported-part-type-values)
+3. **Inspect the property count**. `[+] Injected: <id> (0 props)` means every property was rejected by the game - the XML is structurally valid but contains no recognized field names. Compare against a known-working export
+4. **Look for crashes during injection**. `[-] AddNewPart crashed for: <id>` indicates the part itself broke the game's database call. Most often caused by missing required fields like `Asset Path` or `Concat name`
 
-1. **Check log for skip reasons**: Look for lines like `[!] Skipped (missing Part Type or ID)` or `[-] Duplicate mod ID`
-2. **Verify Part Type spelling**: Case-sensitive. `gpu` won't work, `GPU` will
-3. **Check the Injected count**: Look for `[+] Injected: <id> (<n> props)`. If the count is 0, no properties were accepted — the XML structure is probably malformed
-4. **Look for AddNewPart errors**: `[-] AddNewPart crashed for: <id>` means the part itself broke the game's database call. Compare against a working vanilla part XML
-
-
-### "Class not found" Errors
-
-**Symptoms**: Log shows `[-] Class not found: PartDescGPU` or similar.
-
+### Cold-Start Crash
+ 
+**Symptoms**: The first launch after a reboot crashes; subsequent launches work fine. The log may contain `Collecting from unknown thread`.
+ 
 **Solutions**:
+ 
+- This is a race between MinHook's thread-suspension logic and Unity's thread pool initialization. PCBS2.XPL polls for `PartDesc*` to delay hook installation until IL2CPP metadata is populated, which fixes it in nearly all cases
+- If it still occurs, the timing window may be tighter on your system. Open an [issue](../../issues) with the log and approximate hardware specs
 
-- This usually means a game update changed the IL2CPP class layout. Wait for an updated PCBS2.XPL release, or check the [Issues](../../issues) page for a tracking ticket
-- Verify you're running the official Steam version — some pirated builds strip or rename classes
-
+### "Class Not Found" Errors
+ 
+**Symptoms**: Log lines like `[-] Class not found: PartDesc*`.
+ 
+**Solutions**:
+ 
+- A game update changed the IL2CPP class layout. Check the [Issues](../../issues) page for a tracking ticket, or wait for an updated PCBS2.XPL release
+- Confirm you're running the official Epic Games release - modified or pirated builds may have stripped or renamed classes
 
 ### Hook Installation Failed
-
-**Symptoms**: Log shows `[-] CreateHook failed for: <ClassName> (MH_STATUS=...)`.
-
+ 
+**Symptoms**: `[-] CreateHook failed for: <ClassName> (MH_STATUS=...)` in the log.
+ 
 **Solutions**:
+ 
+- Another mod may have already hooked the same method. Disable other DLL-based mods one at a time to identify the conflict
+- A `[~] <X> shares ImportProp with <Y>` line for the same class is not an error — several PartDesc classes share the same compiled `ImportProp` body, and PCBS2.XPL reuses the existing detour transparently
+- For any other status code, open an [issue](../../issues) with the full log attached
 
-- Another mod may have already hooked the same method. Try removing other mods one at a time
-- If the status code is `MH_ERROR_ALREADY_CREATED`, it's the shared-ImportProp case and the log should also contain `[~] <X> shares ImportProp with <Y>` — that's fine, not a real error
-- For other status codes, open an [issue](../../issues) with the log attached
-
-
-### Game Crashes During Loading
-
-**Symptoms**: Game crashes a few seconds after launch, log shows partial mod injections.
-
+### Game Crashes Mid-Injection
+ 
+**Symptoms**: Game crashes shortly after launch. The log shows several `[+] Injected:` lines, then ends abruptly.
+ 
 **Solutions**:
-
-- Remove all mods from `mods/`. If the game launches cleanly, one of the mods is the culprit
-- Bisect by adding mods back in halves until you find the problematic file
-- The crashing mod's log line will be the last `[+] Injected:` entry before the crash — the mod after that one is the cause
+ 
+- The last `[+] Injected:` line before the crash points to the *previous* successful mod - the failing one is the next in queue. To identify it, move all XMLs out of `mods/`, then add them back in halves until the crash returns
+- Open the suspected XML and verify it has all required fields for its part type - comparing against a vanilla part exported through PCBS2 Part Creator is the fastest cross-check
+- If the crash persists with a single isolated XML, the file is the cause - report it to the mod's author
 
 ## ©️ Credits
 
----
+PCBS2.XPL bundles the following third-party libraries:
+ 
+- **[MinHook](https://github.com/TsudaKageyu/minhook)** by Tsuda Kageyu - minimal x86/x64 API hooking library, used for the `ImportProp` detours [(BSD-2-Clause)](https://opensource.org/license/BSD-2-Clause)  
 
-**Made with ❤️ by anonymus637**
+---
+<div align="center">
+<strong>Made with ❤️ by anonymus637</strong>
+</div>
