@@ -1,67 +1,69 @@
 <div align="center">
 
-<img src="assets/PCBS2_XPL_Logo.png" alt="PCBS2.XPL Logo" width="160" />
+<img src="PCBS2_XPL_Logo.png" alt="PCBS2.XPL Logo" width="160" />
 
-# PCBS2.XPL
+# PC Building Simulator 2 - XML Part Loader
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](../../releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
-[![Game](https://img.shields.io/badge/game-PC%20Building%20Simulator%202-orange.svg)](https://www.pcbuildingsimulator.com/)
-[![C++](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus)]()
+[![Game](https://img.shields.io/badge/game-PC%20Building%20Simulator%202-orange.svg)](https://www.pcbuildingsim.com/)
+[![C++](https://img.shields.io/badge/C%2B%2B-14-00599C.svg?logo=cplusplus)]()
 
 A `version.dll` proxy that injects custom parts into PC Building Simulator 2 at startup.  
-PCBS2.XPL reads XML part definitions from a `mods/` folder and registers them with the game's `PartsDatabase` so they appear alongside the built-in catalog. Designed as a companion to [PCBS2 Part Creator](https://pcbs-partcreator.com), which produces compatible XML files through a visual editor.
+Designed as a companion to [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102), which produces compatible XML files through a visual editor.  
+PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them with the game's `PartsDatabase` so they appear alongside the built-in catalog.
+
+##
+
+<a href="#-features">✨ Features</a> • 
+<a href="#-requirements">🔧 Requirements</a> • 
+<a href="#-installation">📦 Installation</a> • 
+<a href="#-building-from-source">🛠️ Building from Source</a> • 
+<a href="#-mod-xml-format">📄 Mod XML Format</a> • 
+<a href="#-how-it-works">🔬 How It Works</a> • 
+<a href="#-supported-part-categories">🌟 Supported Part Categories</a> • 
+<a href="#-usage-examples">📖 Usage Examples</a> • 
+<a href="#-troubleshooting">🐛 Troubleshooting</a> • 
+<a href="#-credits">©️ Credits</a>
 
 </div>
 
 
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Requirements](#-requirements)
-- [Installation](#-installation)
-- [Mod XML Format](#-mod-xml-format)
-- [How It Works](#-how-it-works)
-- [Building from Source](#-building-from-source)
-- [Usage Examples](#-usage-examples)
-- [Troubleshooting](#-troubleshooting)
-
-
 ## ✨ Features
 
-- **Drop-in Installation**: Single `version.dll` proxy, no BepInEx or MelonLoader required
-- **All Part Categories**: Supports every part type the game uses — GPU, CPU, RAM, Motherboard, PSU, Case, Storage, water-cooling components, peripherals, cables, decorations (32 categories total)
-- **Native Behavior**: Reuses the game's own `ImportProp` and `AddNewPart` methods, so injected parts behave identically to vanilla ones
-- **Companion Tool**: XML files can be generated visually with [PCBS2 Part Creator](https://pcbs-partcreator.com)
-- **Safe Injection**: SEH-guarded database calls prevent a malformed mod from crashing the game
-- **Detailed Logging**: Per-mod status written to `PCBS2.XPL.log` next to the executable
-- **Optional Chain-Load**: Loads `JellysSockets.dll` automatically when present, allowing both mods to coexist on the same `version.dll` slot
+- ✅ **Drop-in Installation**: Single `version.dll` proxy, no BepInEx or MelonLoader required
+- ✅ **All Part Categories**: Supports every part type the game uses - RAM, CPU, GPU, Storage, PSU, Motherboard & [much more](#-supported-part-categories)
+- ✅ **Native Behavior**: Reuses the game's own `ImportProp` and `AddNewPart` methods, so injected parts behave identically to vanilla ones
+- ✅ **Companion Tool**: XML files can be generated visually with [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102)
+- ✅ **Safe Injection**: SEH-guarded database calls prevent a malformed mod from crashing the game
+- ✅ **Detailed Logging**: Per-mod status written to `PCBS2.XPL.log` next to the executable
+- ✅ **Optional Chain-Load**: Loads [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator/tree/main) `version.dll` automatically when present, allowing both mods to coexist on the same `version.dll` slot
 
 
 ## 🔧 Requirements
 
-- **Game**: PC Building Simulator 2
+- **Game**: [PC Building Simulator 2](https://store.epicgames.com/p/pc-building-simulator-2)
 - **OS**: Windows 10 / 11 (x64)
-- **Runtime**: Visual C++ Redistributable 2015–2022 (typically already installed)
+- **Runtime**: [Visual C++ Redistributable 2015-2026](https://visualstudio.microsoft.com/de/downloads/) (typically already installed)
 
 
 ## 📦 Installation
 
 ### Step 1: Install PCBS2.XPL
 
-1. Download the latest `version.dll` from the [Releases](../../releases) page.
-2. Copy it into your PC Building Simulator 2 directory, next to `PCBuildingSimulator2.exe`.  
-   Default Steam path: `...\steamapps\common\PC Building Simulator 2\`
-3. Launch the game once. PCBS2.XPL will create a `mods/` folder in the same directory if it doesn't exist.
+1. Download the latest version from [NexusMods](https://www.nexusmods.com/pcbuildingsimulator2/mods/135)
+2. Copy it into your PC Building Simulator 2 directory, next to `PCBS2.exe`.  
+   Default Epic Games path: `...\Epic Games\PCBuildingSimulator2\`
+3. Launch the game once. **PCBS2.XPL** will create a `mods/` folder in the same directory if it doesn't exist.
 
-> **Note**: If you already have JellysSockets installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place PCBS2.XPL as the new `version.dll`. PCBS2.XPL will chain-load JellysSockets automatically — see [Scenario 4](#scenario-4-co-existing-with-jellyssockets).
+> **Note**If you already have [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator/tree/main) installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place **PCBS2.XPL** as the new `version.dll`. **PCBS2.XPL** will chain-load JellysSockets automatically - see [Scenario 4](#scenario-4-co-existing-with-jellyssockets).
 
 
 ### Step 2: Add Mod Files
 
-1. Place any number of `.xml` part files into the `mods/` folder.
-2. The easiest way to produce valid files is through [PCBS2 Part Creator](https://pcbs-partcreator.com).
+1. Place `.xml` part files into the `mods/` folder.
+2. The easiest way to produce valid files is through [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102).
 3. Launch the game.
 
 
@@ -74,11 +76,42 @@ Check `PCBS2.XPL.log` next to the game executable for entries like:
 [+] Hooked: PartDescGPU
 [+] Hooked: PartDescCPU
 ...
-[+] Loaded: MyCustomCard_RTX9090 (GPU)
+[+] Loaded: MyCustomCard_RTX6090 (GPU)
 [+] Total mods: 1
 [+] Ready
-[+] Injected: MyCustomCard_RTX9090 (42 props)
+[+] Injected: MyCustomCard_RTX6090 (61 props)
 ```
+
+## 🛠️ Building from Source
+
+### Requirements
+
+- **[Visual Studio](https://visualstudio.microsoft.com/de/downloads/)** or newer with the *Desktop development with C++* workload
+- **[Windows SDK 10](https://learn.microsoft.com/de-de/windows/apps/windows-sdk/downloads)**
+- **C++ 14 or newer**
+- **[MinHook](https://github.com/TsudaKageyu/minhook)** - easiest via NuGet package `minhook`
+
+
+### Steps
+
+1. Clone the repository.
+2. Open the solution in Visual Studio.
+3. Install MinHook via *Project → Manage NuGet Packages → Browse → `minhook`*.
+4. Set configuration to **Release / x64**.
+5. Build. The output is `version.dll`.
+
+The project targets x64 only - PC Building Simulator 2 is a 64-bit IL2CPP Unity build, a 32-bit proxy would not load.
+
+
+### Project Layout
+
+| File           | Purpose                                                  |
+|----------------|----------------------------------------------------------|
+| `dllmain.cpp`  | `version.dll` export forwards, DllMain, init thread      |
+| `il2cpp.*`     | IL2CPP API loader and class/method lookup helpers        |
+| `hooks.*`      | MinHook setup for `ImportProp` on every `PartDesc*` class|
+| `config.*`     | XML mod file parsing and part-type normalization         |
+| `logger.*`     | Thread-safe logger writing to `PCBS2.XPL.log`            |
 
 
 ## 📄 Mod XML Format
@@ -153,37 +186,7 @@ PartsDatabase.AddNewPart registers the mod
 Game continues, mod appears in catalog
 ```
 
-
-## 🛠 Building from Source
-
-### Requirements
-
-- **Visual Studio 2022** with the *Desktop development with C++* workload
-- **Windows SDK 10**
-- **C++17**
-- **[MinHook](https://github.com/TsudaKageyu/minhook)** — easiest via NuGet package `minhook.x64`
-
-
-### Steps
-
-1. Clone the repository.
-2. Open the solution in Visual Studio 2022.
-3. Install MinHook via *Project → Manage NuGet Packages → Browse → `minhook.x64`*.
-4. Set configuration to **Release / x64**.
-5. Build. The output is `version.dll`.
-
-The project targets x64 only — PC Building Simulator 2 is a 64-bit IL2CPP Unity build, a 32-bit proxy would not load.
-
-
-### Project Layout
-
-| File           | Purpose                                                  |
-|----------------|----------------------------------------------------------|
-| `dllmain.cpp`  | `version.dll` export forwards, DllMain, init thread      |
-| `il2cpp.*`     | IL2CPP API loader and class/method lookup helpers        |
-| `hooks.*`      | MinHook setup for `ImportProp` on every `PartDesc*` class|
-| `config.*`     | XML mod file parsing and part-type normalization         |
-| `logger.*`     | Thread-safe logger writing to `PCBS2.XPL.log`            |
+## 🌟 Supported Part Categories
 
 
 ## 📖 Usage Examples
@@ -284,8 +287,8 @@ You already use JellysSockets and don't want to lose it. Both JellysSockets and 
 - Bisect by adding mods back in halves until you find the problematic file
 - The crashing mod's log line will be the last `[+] Injected:` entry before the crash — the mod after that one is the cause
 
+## ©️ Credits
 
 ---
-
 
 **Made with ❤️ by anonymus637**
