@@ -34,21 +34,23 @@ static std::string NormalizePartType(const std::string& raw) {
     if (raw == "HDD" || raw == "SSD" || raw == "M2" || raw == "M.2")
         return "Storage";
 
-    if (raw == "AirCooler" || raw == "LiquidCooler")
+    if (raw == "AirCooler" || raw == "Air Cooler" ||
+        raw == "LiquidCooler" || raw == "Liquid Cooler")
         return "Cooler";
 
     if (raw == "WaterCooledGPU") return "GPU";
 
     if (raw == "CableConnectors") return "CableConnector";
     if (raw == "PipeConnectors")  return "PipeConnector";
+    if (raw == "Pipes")           return "Pipe";
     if (raw == "RAMHeatsink")     return "RamHeatsink";
 
-    if (raw == "Monitor")    return "MonitorPerif";
-    if (raw == "Keyboard")   return "KeyboardPerif";
-    if (raw == "Mouse")      return "MousePerif";
-    if (raw == "MousePad")   return "MousePadPerif";
-    if (raw == "Headset")    return "HeadsetPerif";
-    if (raw == "Microphone") return "MicrophonePerif";
+    if (raw == "Monitor")                       return "MonitorPerif";
+    if (raw == "Keyboard")                      return "KeyboardPerif";
+    if (raw == "Mouse")                         return "MousePerif";
+    if (raw == "MousePad" || raw == "Mousepad") return "MousePadPerif";
+    if (raw == "Headset")                       return "HeadsetPerif";
+    if (raw == "Microphone")                    return "MicrophonePerif";
 
     return raw;
 }
