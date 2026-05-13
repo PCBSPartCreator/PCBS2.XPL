@@ -37,6 +37,8 @@ static std::string NormalizePartType(const std::string& raw) {
     if (raw == "AirCooler" || raw == "LiquidCooler")
         return "Cooler";
 
+    if (raw == "WaterCooledGPU") return "GPU";
+
     if (raw == "CableConnectors") return "CableConnector";
     if (raw == "PipeConnectors")  return "PipeConnector";
     if (raw == "RAMHeatsink")     return "RamHeatsink";
