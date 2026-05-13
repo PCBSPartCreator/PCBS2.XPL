@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="PCBS2_XPL_Logo.png" alt="PCBS2.XPL Logo" width="160" />
+<img src="assets/PCBS2_XPL_Logo.png" alt="PCBS2.XPL Logo" width="160" />
 
 # PC Building Simulator 2 - XML Part Loader
 
