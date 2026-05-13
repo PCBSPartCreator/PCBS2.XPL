@@ -1,0 +1,110 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Quelldateien">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Headerdateien">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Ressourcendateien">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="third_party">
+      <UniqueIdentifier>{84e63e29-042a-4668-8088-c5e0f1fe761e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\minhook">
+      <UniqueIdentifier>{51a29030-0a4e-4b2f-a100-13f0c0d15f7f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\minhook\include">
+      <UniqueIdentifier>{9a963da0-e796-459b-8b24-60e1b38b8c08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\minhook\src">
+      <UniqueIdentifier>{56cdba18-549d-4c2c-be44-bddc89dc9f1b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\minhook\src\hde">
+      <UniqueIdentifier>{ed374d0c-32ec-4a1e-8df1-2cad500927ea}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="logger.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="il2cpp.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="hooks.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\include\MinHook.h">
+      <Filter>third_party\minhook\include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\buffer.h">
+      <Filter>third_party\minhook\src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\trampoline.h">
+      <Filter>third_party\minhook\src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\hde\hde32.h">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\hde\hde64.h">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\hde\pstdint.h">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\hde\table32.h">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\minhook\src\hde\table64.h">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="logger.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="il2cpp.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="config.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\minhook\src\buffer.c">
+      <Filter>third_party\minhook\src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\minhook\src\hook.c">
+      <Filter>third_party\minhook\src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\minhook\src\trampoline.c">
+      <Filter>third_party\minhook\src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\minhook\src\hde\hde32.c">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\minhook\src\hde\hde64.c">
+      <Filter>third_party\minhook\src\hde</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="version.rc">
+      <Filter>Ressourcendateien</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>
