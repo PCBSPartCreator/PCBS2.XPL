@@ -24,6 +24,12 @@ static DWORD WINAPI MainThread(LPVOID) {
     HMODULE hGA = nullptr;
     while (!(hGA = GetModuleHandleA("GameAssembly.dll"))) Sleep(100);
 
+    // Give Unity time to finish spawning its thread pool before we hook.
+    // Without this delay, MinHook's thread suspension can race with Unity's
+    // worker-thread creation and trigger "Collecting from unknown thread"
+    // crashes on cold starts.
+    Sleep(2000);
+
     char path[MAX_PATH] = {};
     GetModuleFileNameA(hGA, path, MAX_PATH);
     std::string gameDir(path);
