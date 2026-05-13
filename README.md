@@ -89,14 +89,12 @@ Check `PCBS2.XPL.log` next to the game executable for entries like:
 - **[Visual Studio](https://visualstudio.microsoft.com/de/downloads/)** or newer with the *Desktop development with C++* workload
 - **[Windows SDK 10](https://learn.microsoft.com/de-de/windows/apps/windows-sdk/downloads)**
 - **C++ 14 or newer**
-- **[MinHook](https://github.com/TsudaKageyu/minhook)** - easiest via NuGet package `minhook`
 
 
 ### Steps
 
-1. Clone the repository.
+1. Clone the repository - MinHook is already vendored under `third_party/minhook` so no additional dependencies are needed.
 2. Open the solution in Visual Studio.
-3. Install MinHook via *Project → Manage NuGet Packages → Browse → `minhook`*.
 4. Set configuration to **Release / x64**.
 5. Build. The output is `version.dll`.
 
@@ -121,12 +119,20 @@ PCBS2.XPL reads the same XML layout the game uses for its own parts. Every file 
 ### File Format
 
 ```xml
-<td div="Part Type">GPU</td>
-<td div="ID">MyCustomCard_RTX9090</td>
-<td div="Name">My Custom Card RTX 9090</td>
-<td div="Manufacturer">CustomBrand</td>
-<td div="Price">1499</td>
-<!-- additional properties as needed -->
+AirCooledGPU_AMD AMD FirePro S9170 32GB
+<table>
+    <tr>
+        <td div=""></td>
+        <td div="Part Type">GPU</td>
+        <td div="Class">Modded</td>
+        <td div="Manufacturer">AMD</td>
+        <td div="ID">AirCooledGPU_Custom_659391</td>
+        <td div="Part Name">AMD FirePro S9170</td>
+        <td div="Price">2000</td>
+        <td div="Level">8</td>
+        <!-- additional properties as needed -->
+    </tr>
+</table>
 ```
 
 
