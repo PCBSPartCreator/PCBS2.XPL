@@ -24,12 +24,6 @@ static DWORD WINAPI MainThread(LPVOID) {
     HMODULE hGA = nullptr;
     while (!(hGA = GetModuleHandleA("GameAssembly.dll"))) Sleep(100);
 
-    // Give Unity time to finish spawning its thread pool before we hook.
-    // Without this delay, MinHook's thread suspension can race with Unity's
-    // worker-thread creation and trigger "Collecting from unknown thread"
-    // crashes on cold starts.
-    Sleep(2000);
-
     char path[MAX_PATH] = {};
     GetModuleFileNameA(hGA, path, MAX_PATH);
     std::string gameDir(path);
@@ -46,6 +40,16 @@ static DWORD WINAPI MainThread(LPVOID) {
     if (!IL2CPP_Init(hGA)) {
         Logger::Log("[-] IL2CPP init failed");
         return 1;
+    }
+
+    // Wait until IL2CPP metadata is populated. PartDescGPU is one of the
+    // first PartDesc classes the game registers, so its appearance is a
+    // reliable signal that we can start resolving classes and installing
+    // hooks. Polling avoids the race between Unity thread-pool creation
+    // and MinHook's thread-suspension logic.
+    for (int i = 0; i < 100; i++) {
+        if (IL2CPP_FindClass("", "PartDescGPU")) break;
+        Sleep(50);
     }
 
     if (MH_Initialize() != MH_OK) {
