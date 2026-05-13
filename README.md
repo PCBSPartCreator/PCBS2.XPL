@@ -1,7 +1,19 @@
+<div align="center">
+
+<img src="assets/PCBS2_XPL_Logo.png" alt="PCBS2.XPL Logo" width="160" />
+
 # PCBS2.XPL
+
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](../../releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
+[![Game](https://img.shields.io/badge/game-PC%20Building%20Simulator%202-orange.svg)](https://www.pcbuildingsimulator.com/)
+[![C++](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus)]()
 
 A `version.dll` proxy that injects custom parts into PC Building Simulator 2 at startup.  
 PCBS2.XPL reads XML part definitions from a `mods/` folder and registers them with the game's `PartsDatabase` so they appear alongside the built-in catalog. Designed as a companion to [PCBS2 Part Creator](https://pcbs-partcreator.com), which produces compatible XML files through a visual editor.
+
+</div>
 
 
 ## 📋 Table of Contents
