@@ -6,8 +6,6 @@
 #include "hooks.h"
 #include "config.h"
 
-// Acts as a version.dll proxy: every export forwards to the real system DLL
-// so the Windows loader sees a valid version.dll while we get a DllMain.
 #pragma comment(linker, "/export:GetFileVersionInfoA=C:\\Windows\\System32\\version.GetFileVersionInfoA")
 #pragma comment(linker, "/export:GetFileVersionInfoSizeA=C:\\Windows\\System32\\version.GetFileVersionInfoSizeA")
 #pragma comment(linker, "/export:GetFileVersionInfoSizeW=C:\\Windows\\System32\\version.GetFileVersionInfoSizeW")
@@ -15,12 +13,10 @@
 #pragma comment(linker, "/export:VerQueryValueA=C:\\Windows\\System32\\version.VerQueryValueA")
 #pragma comment(linker, "/export:VerQueryValueW=C:\\Windows\\System32\\version.VerQueryValueW")
 
-// Optional chain-load target. PCBS2.XPL coexists with JellysSockets by
-// pulling it in here when present, so users only need one proxy DLL.
 static HMODULE g_jellyModule = nullptr;
 
 static DWORD WINAPI MainThread(LPVOID) {
-    // GameAssembly.dll is loaded after our proxy, so spin until it appears.
+
     HMODULE hGA = nullptr;
     while (!(hGA = GetModuleHandleA("GameAssembly.dll"))) Sleep(100);
 
@@ -42,13 +38,8 @@ static DWORD WINAPI MainThread(LPVOID) {
         return 1;
     }
 
-    // Wait until IL2CPP metadata is populated. PartDescGPU is one of the
-    // first PartDesc classes the game registers, so its appearance is a
-    // reliable signal that we can start resolving classes and installing
-    // hooks. Polling avoids the race between Unity thread-pool creation
-    // and MinHook's thread-suspension logic.
     for (int i = 0; i < 100; i++) {
-        if (IL2CPP_FindClass("", "PartDescGPU")) break;
+        if (IL2CPP_FindClass("", "PartsDatabase")) break;
         Sleep(50);
     }
 
@@ -61,9 +52,7 @@ static DWORD WINAPI MainThread(LPVOID) {
         Logger::Log("[!] Some hooks failed");
     }
 
-    // Static lifetime so the vector outlives MainThread and is still
-    // available when the hooks fire during the game's part loading phase.
-    static std::vector<ModPart> mods = Config_LoadMods(gameDir);
+    static std::vector<ModFile> mods = Config_ScanMods(gameDir);
     if (!mods.empty()) {
         Hooks_SetPendingMods(&mods);
         Logger::Log("[+] " + std::to_string(mods.size()) + " mods queued");

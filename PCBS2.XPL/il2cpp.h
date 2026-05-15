@@ -35,11 +35,10 @@ DECL_IL2CPP(Il2CppString*, il2cpp_string_new, const char*);
 DECL_IL2CPP(void, il2cpp_runtime_class_init, Il2CppClass*);
 DECL_IL2CPP(uint32_t, il2cpp_gchandle_new, void*, bool);
 DECL_IL2CPP(void*, il2cpp_thread_attach, Il2CppDomain*);
+DECL_IL2CPP(void, il2cpp_runtime_object_init, Il2CppObject*);
 
 #undef DECL_IL2CPP
 
-// Il2CppMethodInfo->methodPointer is the first field on Unity 2019.4 through
-// 2022.x. Revisit if PCBS2 ever moves to a newer Unity that changes the layout.
 inline void* IL2CPP_GetMethodPointer(const Il2CppMethodInfo* method) {
     return method ? *(void**)method : nullptr;
 }

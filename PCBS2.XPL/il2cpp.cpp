@@ -16,6 +16,7 @@ DEF_IL2CPP(il2cpp_string_new)
 DEF_IL2CPP(il2cpp_runtime_class_init)
 DEF_IL2CPP(il2cpp_gchandle_new)
 DEF_IL2CPP(il2cpp_thread_attach)
+DEF_IL2CPP(il2cpp_runtime_object_init)
 #undef DEF_IL2CPP
 
 bool IL2CPP_Init(HMODULE hGA) {
@@ -37,14 +38,13 @@ bool IL2CPP_Init(HMODULE hGA) {
         LOAD(il2cpp_runtime_class_init)
         LOAD(il2cpp_gchandle_new)
         LOAD(il2cpp_thread_attach)
+        LOAD(il2cpp_runtime_object_init)
 #undef LOAD
 
         Logger::Log("[+] IL2CPP API loaded");
     return true;
 }
 
-// Class lookup walks every loaded assembly because PCBS2 splits part types
-// across Assembly-CSharp and a few helper assemblies.
 Il2CppClass* IL2CPP_FindClass(const char* nameSpace, const char* name) {
     Il2CppDomain* domain = il2cpp_domain_get();
     if (!domain) return nullptr;
