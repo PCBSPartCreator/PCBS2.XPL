@@ -12,7 +12,7 @@
 
 A `version.dll` proxy that injects custom parts into PC Building Simulator 2 at startup.  
 Designed as a companion to [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102), which produces compatible XML files through a visual editor.  
-PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them with the game's `PartsDatabase` so they appear alongside the built-in catalog.
+PCBS2.XPL reads XML part definitions from the `mods/` folder and feeds them through the game's own `ImportFromHTML` pipeline, so they appear alongside the built-in catalog as if they were vanilla content.
 
 ##
 
@@ -33,8 +33,11 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them 
 ## ✨ Features
 
 - ✅ **Drop-in Installation**: Single `version.dll` proxy, no BepInEx or MelonLoader required
-- ✅ **All Part Categories**: Supports every part type the game uses - RAM, CPU, GPU, Storage, PSU, Motherboard & [much more](#-part-types)
-- ✅ **Native Behavior**: Reuses the game's own `ImportProp` and `AddNewPart` methods, so injected parts behave identically to vanilla ones
+- ✅ **All Part Categories**: Supports every part type the game registers internally - RAM, CPU, GPU, Storage, PSU, Motherboard & [much more](#-part-types)
+- ✅ **Native Behavior**: Mod XMLs pass through the game's own `ImportFromHTML` method, identical to how vanilla parts are loaded - no manual reconstruction
+- ✅ **Folder Structure**: Mods are scanned recursively, so they can be organized into subfolders by category (`mods/GPU/`, `mods/CPU/`, ...) or kept flat - both work
+- ✅ **Multiple Parts per File**: A single XML can carry many parts of the same type, matching the game's own part-pack layout
+- ✅ **Vanilla Override**: Mods that reuse a vanilla `ID` override that specific part - useful for balance tweaks
 - ✅ **Companion Tool**: XML files can be generated visually with [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102)
 - ✅ **Safe Injection**: SEH-guarded database calls prevent a malformed mod from crashing the game
 - ✅ **Detailed Logging**: Per-mod status written to `PCBS2.XPL.log` next to the executable
@@ -62,7 +65,7 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and registers them 
 
 ### Step 2: Add Mod Files
 
-1. Place `.xml` part files into the `mods/` folder.
+1. Place `.xml` part files into the `mods/` folder. Subfolders are allowed and scanned recursively.
 2. The easiest way to produce valid files is through [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102).
 3. Launch the game.
 
@@ -73,13 +76,14 @@ Check `PCBS2.XPL.log` next to the game executable for entries like:
 
 ```text
 [+] IL2CPP API loaded
-[+] Hooked: PartDescGPU
-[+] Hooked: PartDescCPU
-...
-[+] Loaded: MyCustomCard_RTX6090 (GPU)
-[+] Total mods: 1
+[+] TextAsset .ctor(CreateOptions, string) resolved
+[+] Hooked PartsDatabase.Load
+[+] Found mod file: MyCustomCard_RTX6090.xml
+[+] Total mod files: 1
+[+] 1 mods queued
 [+] Ready
-[+] Injected: MyCustomCard_RTX6090 (61 props)
+[+] Imported: MyCustomCard_RTX6090.xml
+[=] Mod load complete: 1 imported, 0 failed
 ```
 
 ## 🛠️ Building from Source
@@ -107,20 +111,38 @@ The project targets x64 only - PC Building Simulator 2 is a 64-bit IL2CPP Unity 
 |----------------|----------------------------------------------------------|
 | `dllmain.cpp`  | `version.dll` export forwards, DllMain, init thread      |
 | `il2cpp.*`     | IL2CPP API loader and class/method lookup helpers        |
-| `hooks.*`      | MinHook setup for `ImportProp` on every `PartDesc*` class|
-| `config.*`     | XML mod file parsing and part-type normalization         |
+| `hooks.*`      | MinHook setup for `PartsDatabase.Load` and `ImportFromHTML` dispatch |
+| `config.*`     | Recursive `mods/` scan and example-file generation       |
 | `logger.*`     | Thread-safe logger writing to `PCBS2.XPL.log`            |
 
 
 ## 📄 Mod XML Format
 
-PCBS2.XPL reads the same XML layout the game uses for its own parts. Every file must define at minimum a `Part Type` and an `ID`.
+PCBS2.XPL reads the exact same XML layout the game uses for its own parts. The file is parsed by the game's built-in `HTMLTableReader`, so no separate format spec or schema exists - if it works for a vanilla part, it works for a mod.
 
 ### File Format
+
+A mod XML has three structural pieces:
+ 
+1. **First line**: An asset name (any text - used for logging and error messages).
+2. **Header row**: A `<tr>` containing `<td>` cells with the property names. The reader uses this row to map column positions to property names.
+3. **Data row(s)**: One `<tr>` per part. Each `<td>` carries the value, and a `div="..."` attribute identifying which property it corresponds to.
 
 ```xml
 AirCooledGPU_AMD AMD FirePro S9170 32GB
 <table>
+    <tr>
+        <td></td>
+        <td>Part Type</td>
+        <td>Class</td>
+        <td>Manufacturer</td>
+        <td>ID</td>
+        <td>Part Name</td>
+        <td>In Game</td>
+        <td>Price</td>
+        <td>Level</td>
+        <!-- additional column names as needed -->
+    </tr>
     <tr>
         <td div=""></td>
         <td div="Part Type">GPU</td>
@@ -128,9 +150,10 @@ AirCooledGPU_AMD AMD FirePro S9170 32GB
         <td div="Manufacturer">AMD</td>
         <td div="ID">AirCooledGPU_Custom_659391</td>
         <td div="Part Name">AMD FirePro S9170</td>
+        <td div="In Game">Yes</td>
         <td div="Price">2000</td>
         <td div="Level">8</td>
-        <!-- additional properties as needed -->
+        <!-- additional values as needed -->
     </tr>
 </table>
 ```
@@ -138,23 +161,23 @@ AirCooledGPU_AMD AMD FirePro S9170 32GB
 
 ### Format Rules
 
-- **Property Name**: Goes inside the `div="..."` attribute, case-sensitive
-- **Property Value**: Goes between `<td>` and `</td>`
-- **Whitespace**: Leading and trailing spaces in values are automatically trimmed
-- **HTML Entities**: `&amp;` `&quot;` `&lt;` `&gt;` `&apos;` are decoded automatically
-- **Required Fields**: `Part Type` and `ID` must both be present, otherwise the file is skipped
-- **Duplicates**: If the same `ID` appears in multiple files, the first occurrence wins
+- **Property Name**: Header `<td>` text and the `div="..."` attribute of the matching data cell must agree. Both are case-sensitive
+- **Property Value**: Goes between `<td>` and `</td>` on the data row
+- **Required Fields**: `Part Type`, `ID`, and `In Game = Yes` must be present, otherwise the row is silently skipped by the game's reader
+- **Multiple Parts**: A single XML may contain multiple data rows sharing the same header - useful for shipping a whole pack as one file. All parts in one XML must share the same `Part Type`
+- **Overrides**: A row whose `ID` matches an existing vanilla or modded part overwrites that part rather than adding a new one
 
 
 ## 🔬 How It Works
  
-PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses [MinHook](https://github.com/TsudaKageyu/minhook) to intercept the game's own part-loading code and inject mod XMLs through it.
+PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses [MinHook](https://github.com/TsudaKageyu/minhook) to intercept a single method of the game's part database and hand it the mod XMLs.
  
 1. **Proxy Load**: PCBS2.XPL is named `version.dll` and placed next to `PCBS2.exe`. Windows loads DLLs from the program's own folder before the system folder, so the game loads PCBS2.XPL instead of the real one. All exports are forwarded to `C:\Windows\System32\version.dll`.
 2. **Wait for the Game**: A background thread waits for `GameAssembly.dll` to load, then resolves the IL2CPP runtime API used to look up game classes by name.
-3. **Install Hooks**: MinHook places a detour on the `ImportProp` method of every `PartDesc*` class. Several PartDesc classes share the same compiled `ImportProp` body - those reuse the existing trampoline.
-4. **Read Mods**: XML files in `mods/` are parsed and queued in memory.
-5. **Injection**: The first time the game calls `ImportProp` on a part of a given type, the detour fires. PCBS2.XPL constructs a new `PartDesc*` for each queued mod of that type, replays every property through the original `ImportProp`, and registers the finished part via `PartsDatabase.AddNewPart`.
+3. **Install the Hook**: MinHook places a single detour on `PartsDatabase.Load`. Method pointers to `PartsDatabase.ImportFromHTML` and the `UnityEngine.TextAsset(CreateOptions, string)` constructor are resolved at the same time.
+4. **Scan Mods**: The `mods/` folder is walked recursively, every `.xml` file found is queued by path.
+5. **Injection**: When the game calls `PartsDatabase.Load()`, the detour first runs the original method (loading every vanilla part). It then iterates the queued mod files: each XML is read from disk, wrapped in a `TextAsset`, and passed to `ImportFromHTML` - the same method the game uses internally for its own part assets.
+The game's own `HTMLTableReader` parses the table, the game's own `PartDesc.Create` factory builds the right subclass for each row, and the game's own virtual `ImportProp` dispatch sets every property. PCBS2.XPL never constructs a `PartDesc`, never sets a property, never touches the database directly - it just hands the game a `TextAsset` and lets the vanilla loading code do the rest.
 
 ### Technical Flow
  
@@ -176,8 +199,8 @@ PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses 
    │         │                                                   │
    │         ├─────────────────────────┐                         │
    │         ▼                         ▼                         │
-   │     Parse mods/*.xml         Install MinHook                │
-   │     into queue               detours on ImportProp          │
+   │     Scan mods/ recursively   Install MinHook                │
+   │     into queue               detour on PartsDatabase.Load   │
    │                                                             │
    └─────────────────────────────────────────────────────────────┘
                                   │
@@ -186,45 +209,46 @@ PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses 
    │  Injection Phase                                            │
    ├─────────────────────────────────────────────────────────────┤
    │                                                             │
-   │     Game calls ImportProp on a vanilla part                 │
+   │     Game calls PartsDatabase.Load()                         │
    │         │                                                   │
    │         ▼                                                   │
-   │     Detour fires (once per part type)                       │
+   │     Detour fires                                            │
    │         │                                                   │
    │         ▼                                                   │
-   │     For each queued mod of this type:                       │
-   │       • new PartDesc*()                                     │
-   │       • replay properties via original ImportProp           │
-   │       • PartsDatabase.AddNewPart(id, part)                  │
+   │     Run original Load() - vanilla parts populate m_parts    │
    │         │                                                   │
    │         ▼                                                   │
-   │     Original ImportProp continues                           │
+   │     For each queued mod XML:                                │
+   │       • Read file into memory                               │
+   │       • Wrap content in a TextAsset                         │
+   │       • Call PartsDatabase.ImportFromHTML(asset)            │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Vanilla pipeline parses rows, builds PartDescs,         │
+   │     adds them to m_parts - mods are now indistinguishable   │
+   │     from built-in content                                   │
    │                                                             │
    └─────────────────────────────────────────────────────────────┘
 ```
 
 ## 🌟 Part Types
-
-### Supported Part Type values
-| Category        | Accepted `Part Type` values                                                       |
-|-----------------|-----------------------------------------------------------------------------------|
-| Core components | `GPU`, `WaterCooledGPU`, `CPU`, `RAM`, `Motherboard`, `PSU`, `Case`               |
-| Storage         | `Storage`, `HDD`, `SSD`, `M2`, `M.2`                                              |
-| Cooling         | `Cooler`, `AirCooler`, `Air Cooler`, `LiquidCooler`, `Liquid Cooler`              |
-| Water cooling   | `CPUBlock`, `GPUBlock`, `MotherboardBlock`, `MemoryBlock`, `Pump`, `Reservoir`, `PumpReservoir`, `Coolant` |
-| Peripherals     | `Monitor`, `Keyboard`, `Mouse`, `MousePad`, `Mousepad`, `Headset`, `Microphone`   |
-| Connectivity    | `Cable`, `CableConnector`, `CableConnectors`, `Pipe`, `Pipes`, `PipeConnector`, `PipeConnectors` |
-| Accessories     | `Tool`, `Decoration`, `LEDStrip`, `RamHeatsink`, `PowerSplitter`, `PowerAdapter`  |
-
-### ⚠️ Currently Unsupported Part Type values
-The following part types are recognized by PCBS2 Part Creator but cannot be injected through PCBS2.XPL, because the game does not load them via its `ImportProp` mechanism:
  
-- **Case Fan**, **Radiator**, **Pipes** - these exist in-game only as Unity components, not as standalone XML-loadable part definitions.
-- **Program**, **USB Drive**, **Tool Upgrade** - handled internally as specialized `Tool` variants or as Unity prefabs; they have no dedicated `PartDesc` class with an `ImportProp` method.
-
-If a mod XML uses one of these types, the file will be parsed but no matching hook will fire, and the part will silently not appear in-game.  
-The log will show `[+] Loaded: <id> (<type>)` but no corresponding `[+] Injected: <id>` line.  
-For these part types, use PCBS2 Part Creator's direct patch mode (which writes to the game's `.assets` files) instead of the XML mod loader.
+The `Part Type` field of each mod row must match a string the game's `PartDesc.Create` factory recognizes. PCBS2 Part Creator exports the correct strings automatically, so manual editing is rarely needed.
+ 
+### Supported Part Type values
+ 
+| Category        | Accepted `Part Type` values                                                                    |
+|-----------------|------------------------------------------------------------------------------------------------|
+| Core components | `GPU`, `WaterCooledGPU`, `CPU`, `RAM`, `Motherboard`, `PSU`, `Case`                            |
+| Storage         | `HDD`, `SSD`, `M2`                                                                             |
+| Cooling         | `Air Cooler`, `Liquid Cooler`, `Case Fan`, `Radiator`                                          |
+| Water cooling   | `CPUBlock`, `GPUBlock`, `MotherboardBlock`, `MemoryBlock`, `Pump`, `PumpReservoir`, `Coolant`  |
+| Connectivity    | `Cable`, `CableConnectors`, `Pipes`, `PipeConnectors`                                          |
+| Peripherals     | `Monitor`, `Keyboard`, `Mouse`, `Mousepad`, `Headset`, `Microphone`                            |
+| Accessories     | `Decoration`, `RamHeatsink`, `PowerSplitter`, `PowerAdapter`                                   |
+| Software & misc | `Program`, `USB Drive`, `Tool`, `Tool Upgrade`                                                 |
+ 
+> **Note** Strings are case-sensitive and the spaces in multi-word values (`Air Cooler`, `Case Fan`, `Tool Upgrade`, `USB Drive`) are part of the name - omit or replace them and the game will reject the row.
 
 ## 📖 Usage Notes
  
@@ -233,33 +257,47 @@ This section is for mod authors and players setting up a `mods/` folder for the 
  
 ### Note 1: Adding a Single Part
  
-Place `mods/MyCustomGPU.xml` in the mods folder. The filename doesn't matter - PCBS2.XPL identifies parts by their `ID` field.  
+Place `mods/MyCustomGPU.xml` in the mods folder. The filename doesn't matter - the game identifies parts by their `ID` field.  
 Launch the game and the part appears in the shop and inventory.
  
  
-### Note 2: One Part Per File
+### Note 2: One or Multiple Parts Per File
  
-PCBS2.XPL expects exactly one part per XML file. The parser walks every `<td div="...">value</td>` tag in the file and merges all properties into a single part  
-If a file contains multiple `<tr>` blocks, the later `ID` and `Part Type` values overwrite the earlier ones, and only the last part is loaded.  
-For multiple parts, use multiple files: one `.xml` per part.
- 
- 
-### Note 3: Shipping a Parts Pack
- 
-Drop all `.xml` files into `mods/` - no manifest, no installer, no load order. Each file's `Part Type` decides which hook handles it.  
-To distribute the pack, zip the XMLs and let users extract them into their own `mods/` folder.
+A mod XML can contain a single part or many. The game's `HTMLTableReader` parses the header row once and then iterates every data row beneath it, so each `<tr>` after the header becomes one part.  
+The catch: every row in the file shares the same column header, so all parts in one XML must be of the same `Part Type`. A pack of fifteen GPUs in one XML is fine; mixing one GPU and one CPU in the same file is not - use two files instead.
  
  
-### Note 4: Storage Variants
+### Note 3: Organizing the mods/ Folder
  
-The game has a single `Storage` category internally, but PCBS2 Part Creator exports SSDs, HDDs, and M.2 drives with distinct `Part Type` values.  
-All four (`SSD`, `HDD`, `M2`, `M.2`) are normalized to `Storage` on load, so XMLs from any source work without rewriting.
+PCBS2.XPL scans `mods/` recursively, so subfolders are allowed and never required. Both layouts work:
+ 
+```
+mods/
+  MyGPU.xml
+  MyCPU.xml
+```
+ 
+```
+mods/
+  GPU/
+    MyGPU.xml
+  CPU/
+    MyCPU.xml
+```
+ 
+Use whatever makes sense for your collection. The game only sees the parts inside the files, not their folder structure.
  
  
-### Note 5: Water-Cooled GPUs
+### Note 4: Shipping a Parts Pack
  
-PCBS2 has no separate `PartDescWaterCooledGPU` class - water-cooled GPUs use the regular `GPU` class with extra properties.  
-`Part Type = WaterCooledGPU` is normalized to `GPU` automatically, so PCBS2 Part Creator exports work directly.
+Drop all `.xml` files (and any subfolders) into `mods/` - no manifest, no installer, no load order. The game's pipeline handles every part type uniformly.  
+To distribute the pack, zip the XMLs (with their folder structure if any) and let users extract them into their own `mods/` folder.
+ 
+ 
+### Note 5: Overriding Vanilla Parts
+ 
+If a mod row uses an `ID` that already exists in the parts database (vanilla or from another mod), the existing part is overwritten with the new values.  
+This is useful for balance mods that want to tweak a specific vanilla part without redefining it from scratch. To **add** a new part instead of overriding, simply pick an `ID` that doesn't collide with anything in vanilla - PCBS2 Part Creator's `_Custom_######` suffix is one common convention.
  
  
 ### Note 6: Running Alongside Jelly's Socket Creator
@@ -277,14 +315,13 @@ Save files reference parts by `ID`, so if a save was made with a modded part and
  
 ### Note 8: Duplicate IDs Across Files
  
-If two XML files declare the same `ID`, only the first one loaded wins.  
-The duplicate is logged as `[-] Duplicate mod ID: <id> (<filename>) - skipped` and ignored.  
-File load order is determined by Windows' `FindFirstFile`, which is not strictly alphabetical - for predictable behavior, ensure every mod uses a unique `ID`.
+If two XML files declare the same `ID`, the file loaded last wins (the earlier one is effectively overwritten).  
+File load order follows the recursive directory walk, which is not strictly alphabetical. For predictable behavior, ensure every mod uses a unique `ID` unless you specifically intend to override another mod.
 
 
 ## 🐛 Troubleshooting
  
-Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check it first - the prefixes (`[+]` success, `[~]` info, `[!]` warning, `[-]` error) indicate the severity of each event. If the log doesn't help, the categories below cover the common failure modes.
+Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check it first - the prefixes (`[+]` success, `[~]` info, `[!]` warning, `[-]` error, `[=]` summary) indicate the severity of each event. For issues with the parts themselves, the game's own `Player.log` (under `%USERPROFILE%\AppData\LocalLow\The Irregular Corporation\PC Building Simulator 2\`) often contains additional clues from the vanilla loading pipeline. If neither log helps, the categories below cover the common failure modes.
  
  
 ### Game Doesn't Start
@@ -297,8 +334,7 @@ Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check i
 - Confirm the build matches your platform - only an x64 build exists, 32-bit Windows is not supported
 - Install the [Visual C++ Redistributable 2015-2026](https://visualstudio.microsoft.com/de/downloads/)
 - Temporarily rename `version.dll` to confirm it's the cause. If the game still doesn't start, the issue is unrelated to PCBS2.XPL
-- Antivirus software sometimes quarantines unknown DLLs in game directories — check the quarantine folder
-
+- Antivirus software sometimes quarantines unknown DLLs in game directories - check the quarantine folder
 ### No Log File Is Created
  
 **Symptoms**: Game launches normally, but `PCBS2.XPL.log` doesn't appear.
@@ -308,61 +344,57 @@ Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check i
 - The proxy isn't loading. Verify the filename is exactly `version.dll`, not `version (1).dll` or similar
 - The game folder must be writable. Epic Games libraries under `Program Files` may require running the game once as administrator, or moving the library to a user-writable location
 - A leftover `JellysSockets.dll` from a previous mod can also occupy the slot - see [Note 6](#note-6-running-alongside-jellys-socket-creator)
-
 ### Mods Don't Appear In-Game
  
-**Symptoms**: The log shows `[+] Ready` and `[+] Total mods: N`, but the modded parts aren't visible in the shop or inventory.
+**Symptoms**: The log shows `[=] Mod load complete: N imported, 0 failed`, but the modded parts aren't visible in the shop or inventory.
  
 **Solutions**:
  
-1. **Check for `[+] Injected:` lines**. If a mod appears as `[+] Loaded:` but never `[+] Injected:`, its part type has no matching hook - typically because the type isn't supported (see [Currently Unsupported Part Type values](#-currently-unsupported-part-type-values))
-2. **Verify `Part Type` spelling**. Values are case-sensitive: `gpu` is not recognized, `GPU` is. PCBS2 Part Creator's spaced variants like `Air Cooler` are accepted, see [Supported Part Type values](#supported-part-type-values)
-3. **Inspect the property count**. `[+] Injected: <id> (0 props)` means every property was rejected by the game - the XML is structurally valid but contains no recognized field names. Compare against a known-working export
-4. **Look for crashes during injection**. `[-] AddNewPart crashed for: <id>` indicates the part itself broke the game's database call. Most often caused by missing required fields like `Asset Path` or `Concat name`
-
+1. **Check Player.log**. The game's `HTMLTableReader` logs a `Couldn't find parts in <name>` warning when an XML's structure doesn't match what it expects. Open `%USERPROFILE%\AppData\LocalLow\The Irregular Corporation\PC Building Simulator 2\Player.log` and search for "Couldn't find parts" - if present, the XML format is off
+2. **Verify the header row**. The first `<tr>` must contain a `<td>` whose text is exactly `Part Type` (case-sensitive). Without it, the reader skips the entire file
+3. **Verify `In Game = Yes`**. Rows where `In Game` is empty, `No`, or missing are silently dropped by the game's loader, even if everything else is correct
+4. **Confirm the `Part Type` is supported**. If the type is one of the [unsupported values](#-currently-unsupported-part-type-values), the part will never appear - the loader has no class to instantiate
+5. **Watch for ImportFromHTML crashes**. `[-] ImportFromHTML crashed for: <file>` in `PCBS2.XPL.log` indicates the XML caused an exception inside the game's loader. Compare structurally against a known-working PCBS2 Part Creator export
 ### Cold-Start Crash
  
-**Symptoms**: The first launch after a reboot crashes; subsequent launches work fine. The log may contain `Collecting from unknown thread`.
+**Symptoms**: The first launch after a reboot crashes; subsequent launches work fine.
  
 **Solutions**:
  
-- This is a race between MinHook's thread-suspension logic and Unity's thread pool initialization. PCBS2.XPL polls for `PartDesc*` to delay hook installation until IL2CPP metadata is populated, which fixes it in nearly all cases
+- This is a race between MinHook's thread-suspension logic and Unity's thread pool initialization. PCBS2.XPL polls for `PartsDatabase` to delay hook installation until IL2CPP metadata is populated, which fixes it in nearly all cases
 - If it still occurs, the timing window may be tighter on your system. Open an [issue](../../issues) with the log and approximate hardware specs
-
 ### "Class Not Found" Errors
  
-**Symptoms**: Log lines like `[-] Class not found: PartDesc*`.
+**Symptoms**: Log lines like `[-] PartsDatabase class not found` or `[-] UnityEngine.TextAsset class not found`.
  
 **Solutions**:
  
 - A game update changed the IL2CPP class layout. Check the [Issues](../../issues) page for a tracking ticket, or wait for an updated PCBS2.XPL release
 - Confirm you're running the official Epic Games release - modified or pirated builds may have stripped or renamed classes
-
 ### Hook Installation Failed
  
-**Symptoms**: `[-] CreateHook failed for: <ClassName> (MH_STATUS=...)` in the log.
+**Symptoms**: `[-] CreateHook on PartsDatabase.Load failed (MH_STATUS=...)` in the log.
  
 **Solutions**:
  
 - Another mod may have already hooked the same method. Disable other DLL-based mods one at a time to identify the conflict
-- A `[~] <X> shares ImportProp with <Y>` line for the same class is not an error — several PartDesc classes share the same compiled `ImportProp` body, and PCBS2.XPL reuses the existing detour transparently
 - For any other status code, open an [issue](../../issues) with the full log attached
-
 ### Game Crashes Mid-Injection
  
-**Symptoms**: Game crashes shortly after launch. The log shows several `[+] Injected:` lines, then ends abruptly.
+**Symptoms**: Game crashes shortly after launch. The log shows several `[+] Imported:` lines, then ends abruptly.
  
 **Solutions**:
  
-- The last `[+] Injected:` line before the crash points to the *previous* successful mod - the failing one is the next in queue. To identify it, move all XMLs out of `mods/`, then add them back in halves until the crash returns
-- Open the suspected XML and verify it has all required fields for its part type - comparing against a vanilla part exported through PCBS2 Part Creator is the fastest cross-check
+- The last `[+] Imported:` line before the crash points to the *previous* successful mod - the failing one is the next in queue. To identify it, move all XMLs out of `mods/`, then add them back in halves until the crash returns
+- Open the suspected XML and verify it has all required fields - comparing against a vanilla part exported through PCBS2 Part Creator is the fastest cross-check
+- A missing or invalid `Asset Path` is a frequent culprit: the part loads, but crashes the game when it later tries to instantiate the (nonexistent) prefab
 - If the crash persists with a single isolated XML, the file is the cause - report it to the mod's author
 
 ## ©️ Credits
 
 PCBS2.XPL bundles the following third-party libraries:
  
-- **[MinHook](https://github.com/TsudaKageyu/minhook)** by Tsuda Kageyu - minimal x86/x64 API hooking library, used for the `ImportProp` detours [(BSD-2-Clause)](https://opensource.org/license/BSD-2-Clause)  
+- **[MinHook](https://github.com/TsudaKageyu/minhook)** by Tsuda Kageyu - minimal x86/x64 API hooking library, used for the `PartsDatabase.Load` detour [(BSD-2-Clause)](https://opensource.org/license/BSD-2-Clause)
 
 ---
 <div align="center">
