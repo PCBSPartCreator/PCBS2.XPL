@@ -1,162 +1,64 @@
 #include "config.h"
 #include "logger.h"
-#include <fstream>
 #include <windows.h>
+#include <fstream>
 
-static std::string DecodeEntities(const std::string& s) {
-    std::string r = s;
-    size_t pos = 0;
-    auto replace = [&](const std::string& from, const std::string& to) {
-        pos = 0;
-        while ((pos = r.find(from, pos)) != std::string::npos) {
-            r.replace(pos, from.length(), to);
-            pos += to.length();
-        }
-        };
-    replace("&amp;", "&");
-    replace("&quot;", "\"");
-    replace("&lt;", "<");
-    replace("&gt;", ">");
-    replace("&apos;", "'");
-    return r;
-}
+static void ScanDirectory(const std::string& dir, std::vector<ModFile>& out) {
+    std::string searchPattern = dir + "\\*";
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = FindFirstFileA(searchPattern.c_str(), &findData);
+    if (hFind == INVALID_HANDLE_VALUE) return;
 
-static std::string Trim(const std::string& s) {
-    size_t start = s.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos) return "";
-    size_t end = s.find_last_not_of(" \t\r\n");
-    return s.substr(start, end - start + 1);
-}
+    do {
+        const std::string name = findData.cFileName;
+        if (name == "." || name == "..") continue;
 
-// Map user-facing part type aliases to the internal IL2CPP class suffix.
-// Storage variants and cooler subtypes share one PartDesc class in PCBS2.
-static std::string NormalizePartType(const std::string& raw) {
-    if (raw == "HDD" || raw == "SSD" || raw == "M2" || raw == "M.2")
-        return "Storage";
+        const std::string fullPath = dir + "\\" + name;
 
-    if (raw == "AirCooler" || raw == "Air Cooler" ||
-        raw == "LiquidCooler" || raw == "Liquid Cooler")
-        return "Cooler";
-
-    if (raw == "WaterCooledGPU") return "GPU";
-
-    if (raw == "CableConnectors") return "CableConnector";
-    if (raw == "PipeConnectors")  return "PipeConnector";
-    if (raw == "Pipes")           return "Pipe";
-    if (raw == "RAMHeatsink")     return "RamHeatsink";
-
-    if (raw == "Monitor")                       return "MonitorPerif";
-    if (raw == "Keyboard")                      return "KeyboardPerif";
-    if (raw == "Mouse")                         return "MousePerif";
-    if (raw == "MousePad" || raw == "Mousepad") return "MousePadPerif";
-    if (raw == "Headset")                       return "HeadsetPerif";
-    if (raw == "Microphone")                    return "MicrophonePerif";
-
-    return raw;
-}
-
-// Mod files follow the same <td div="key">value</td> layout the game uses
-// for its own part XMLs, so the parser stays minimal on purpose.
-static ModPart ParseModFile(const std::string& path) {
-    ModPart part;
-    part.fileName = path;
-
-    std::ifstream file(path, std::ios::binary);
-    if (!file.is_open()) return part;
-
-    std::string content((std::istreambuf_iterator<char>(file)),
-        std::istreambuf_iterator<char>());
-    file.close();
-
-    size_t pos = 0;
-    while (pos < content.size()) {
-        size_t tdStart = content.find("<td div=\"", pos);
-        if (tdStart == std::string::npos) break;
-
-        size_t nameStart = tdStart + 9;
-        size_t nameEnd = content.find("\"", nameStart);
-        if (nameEnd == std::string::npos) break;
-
-        std::string name = content.substr(nameStart, nameEnd - nameStart);
-
-        size_t valueStart = content.find(">", nameEnd);
-        if (valueStart == std::string::npos) break;
-        valueStart++;
-
-        size_t valueEnd = content.find("</td>", valueStart);
-        if (valueEnd == std::string::npos) break;
-
-        name = Trim(name);
-        std::string value = Trim(DecodeEntities(content.substr(valueStart, valueEnd - valueStart)));
-
-        if (name.empty()) {
-            pos = valueEnd + 5;
+        if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            ScanDirectory(fullPath, out);
             continue;
         }
 
-        part.properties.emplace_back(name, value);
-        if (name == "Part Type") part.partType = NormalizePartType(value);
-        if (name == "ID")        part.id = value;
-        pos = valueEnd + 5;
-    }
+        if (name.size() < 4) continue;
+        std::string ext = name.substr(name.size() - 4);
+        for (auto& c : ext) c = (char)tolower(c);
+        if (ext != ".xml") continue;
 
-    return part;
+        out.push_back({ fullPath, name });
+    } while (FindNextFileA(hFind, &findData));
+
+    FindClose(hFind);
 }
 
-std::vector<ModPart> Config_LoadMods(const std::string& gameDir) {
-    std::vector<ModPart> mods;
-
-    std::string modsDir = gameDir + "mods";
-    std::string searchPattern = modsDir + "\\*.xml";
+std::vector<ModFile> Config_ScanMods(const std::string& gameDir) {
+    std::vector<ModFile> mods;
+    const std::string modsDir = gameDir + "mods";
 
     DWORD attrs = GetFileAttributesA(modsDir.c_str());
-
     if (attrs == INVALID_FILE_ATTRIBUTES) {
-        if (CreateDirectoryA(modsDir.c_str(), nullptr)) {
-            Logger::Log("[+] Created mods folder: " + modsDir);
-        }
-        else {
+        if (!CreateDirectoryA(modsDir.c_str(), nullptr)) {
             Logger::Log("[-] Failed to create mods folder. Error: " + std::to_string(GetLastError()));
             return mods;
         }
+        Logger::Log("[+] Created mods folder: " + modsDir);
+        return mods;
     }
-    else if (!(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    if (!(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
         Logger::Log("[-] mods exists but is not a folder: " + modsDir);
         return mods;
     }
 
-    WIN32_FIND_DATAA findData;
-    HANDLE hFind = FindFirstFileA(searchPattern.c_str(), &findData);
+    ScanDirectory(modsDir, mods);
 
-    if (hFind == INVALID_HANDLE_VALUE) {
-        Logger::Log("[!] No mods found in mods/ folder");
-        return mods;
+    if (mods.empty()) {
+        Logger::Log("[!] No .xml mods found in mods/ folder");
     }
-
-    do {
-        std::string fullPath = modsDir + "\\" + findData.cFileName;
-        ModPart part = ParseModFile(fullPath);
-
-        if (part.partType.empty() || part.id.empty()) {
-            Logger::Log("[!] Skipped (missing Part Type or ID): " + std::string(findData.cFileName));
-            continue;
+    else {
+        for (const auto& m : mods) {
+            Logger::Log("[+] Found mod file: " + m.fileName);
         }
-
-        bool duplicate = false;
-        for (const auto& existing : mods) {
-            if (existing.id == part.id) {
-                Logger::Log("[-] Duplicate mod ID: " + part.id + " (" + findData.cFileName + ") - skipped");
-                duplicate = true;
-                break;
-            }
-        }
-        if (!duplicate) {
-            Logger::Log("[+] Loaded: " + part.id + " (" + part.partType + ")");
-            mods.push_back(part);
-        }
-    } while (FindNextFileA(hFind, &findData));
-
-    FindClose(hFind);
-    Logger::Log("[+] Total mods: " + std::to_string(mods.size()));
+        Logger::Log("[+] Total mod files: " + std::to_string(mods.size()));
+    }
     return mods;
 }
