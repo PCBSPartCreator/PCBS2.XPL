@@ -48,6 +48,74 @@ static bool SafeImportFromHTML(void* db, void* asset) {
     }
 }
 
+static bool HasHeaderRow(const std::string& content) {
+    size_t firstTr = content.find("<tr>");
+    if (firstTr == std::string::npos) return true;
+    size_t secondTr = content.find("<tr>", firstTr + 4);
+    size_t endOfFirstTr = (secondTr == std::string::npos)
+        ? content.find("</tr>", firstTr) : secondTr;
+    if (endOfFirstTr == std::string::npos) return true;
+
+    std::string firstRow = content.substr(firstTr, endOfFirstTr - firstTr);
+ 
+    size_t p = 0;
+    while ((p = firstRow.find("div=\"", p)) != std::string::npos) {
+        p += 5;
+        if (p < firstRow.size() && firstRow[p] != '"') {
+            return false;
+        }
+        p++;
+    }
+    return true;
+}
+
+static std::string BuildHeaderFromDataRow(const std::string& firstRow) {
+    std::string header = "<tr>";
+    size_t p = 0;
+    while (true) {
+        size_t tdStart = firstRow.find("<td", p);
+        if (tdStart == std::string::npos) break;
+        size_t tdEnd = firstRow.find(">", tdStart);
+        if (tdEnd == std::string::npos) break;
+
+        std::string tdTag = firstRow.substr(tdStart, tdEnd - tdStart);
+        size_t divPos = tdTag.find("div=\"");
+        std::string label;
+        if (divPos != std::string::npos) {
+            size_t valStart = divPos + 5;
+            size_t valEnd = tdTag.find("\"", valStart);
+            if (valEnd != std::string::npos) {
+                label = tdTag.substr(valStart, valEnd - valStart);
+            }
+        }
+        header += "<td>" + label + "</td>";
+        p = tdEnd + 1;
+    }
+    header += "</tr>";
+    return header;
+}
+
+static std::string EnsureHeader(const std::string& content, const std::string& fileName) {
+    if (HasHeaderRow(content)) return content;
+
+    size_t firstTr = content.find("<tr>");
+    if (firstTr == std::string::npos) return content;
+    size_t endOfFirstTr = content.find("</tr>", firstTr);
+    if (endOfFirstTr == std::string::npos) return content;
+
+    std::string firstRow = content.substr(firstTr, endOfFirstTr + 5 - firstTr);
+    std::string header = BuildHeaderFromDataRow(firstRow);
+
+    size_t tablePos = content.find("<table>");
+    if (tablePos == std::string::npos) return content;
+    size_t insertAt = tablePos + 7;
+
+    std::string result = content;
+    result.insert(insertAt, header);
+    Logger::Log("[+] Injected dynamic header for: " + fileName);
+    return result;
+}
+
 static void LoadAllMods(void* dbInstance) {
     if (g_modsLoaded) return;
     if (!g_pendingMods || g_pendingMods->empty()) return;
@@ -63,6 +131,8 @@ static void LoadAllMods(void* dbInstance) {
             failed++;
             continue;
         }
+
+        content = EnsureHeader(content, mod.fileName);
 
         void* asset = CreateTextAsset(content);
         if (!asset) {
