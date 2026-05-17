@@ -78,12 +78,16 @@ Check `PCBS2.XPL.log` next to the game executable for entries like:
 [+] IL2CPP API loaded
 [+] TextAsset .ctor(CreateOptions, string) resolved
 [+] Hooked PartsDatabase.Load
-[+] Found mod file: MyCustomCard_RTX6090.xml
-[+] Total mod files: 1
-[+] 1 mods queued
+[+] Found mod file: AirCooledGPU_AMD_FirePro_S9170.xml
+[+] Found mod file: CPU_Ryzen_9_9950X3D2.xml
+[+] Total mod files: 2
+[+] 2 mods queued
 [+] Ready
-[+] Imported: MyCustomCard_RTX6090.xml
-[=] Mod load complete: 1 imported, 0 failed
+[+] Injected dynamic header for: AirCooledGPU_AMD_FirePro_S9170.xml
+[+] Imported: AirCooledGPU_AMD_FirePro_S9170.xml
+[+] Injected dynamic header for: CPU_Ryzen_9_9950X3D2.xml
+[+] Imported: CPU_Ryzen_9_9950X3D2.xml
+[=] Mod load complete: 2 imported, 0 failed
 ```
 
 ## 🛠️ Building from Source
@@ -121,50 +125,35 @@ The project targets x64 only - PC Building Simulator 2 is a 64-bit IL2CPP Unity 
 PCBS2.XPL reads the exact same XML layout the game uses for its own parts. The file is parsed by the game's built-in `HTMLTableReader`, so no separate format spec or schema exists - if it works for a vanilla part, it works for a mod.
 
 ### File Format
-
-A mod XML has three structural pieces:
+ 
+A mod XML has two structural pieces:
  
 1. **First line**: An asset name (any text - used for logging and error messages).
-2. **Header row**: A `<tr>` containing `<td>` cells with the property names. The reader uses this row to map column positions to property names.
-3. **Data row(s)**: One `<tr>` per part. Each `<td>` carries the value, and a `div="..."` attribute identifying which property it corresponds to.
-
+2. **Data row(s)**: One `<tr>` per part. Each `<td>` carries the value, and a `div="..."` attribute identifying which property it corresponds to.
 ```xml
-AirCooledGPU_AMD AMD FirePro S9170 32GB
+GPU_Example
 <table>
-    <tr>
-        <td></td>
-        <td>Part Type</td>
-        <td>Class</td>
-        <td>Manufacturer</td>
-        <td>ID</td>
-        <td>Part Name</td>
-        <td>In Game</td>
-        <td>Price</td>
-        <td>Level</td>
-        <!-- additional column names as needed -->
-    </tr>
-    <tr>
-        <td div=""></td>
-        <td div="Part Type">GPU</td>
-        <td div="Class">Modded</td>
-        <td div="Manufacturer">AMD</td>
-        <td div="ID">AirCooledGPU_Custom_659391</td>
-        <td div="Part Name">AMD FirePro S9170</td>
-        <td div="In Game">Yes</td>
-        <td div="Price">2000</td>
-        <td div="Level">8</td>
-        <!-- additional values as needed -->
-    </tr>
+  <tr>
+    <td div=""></td>
+    <td div="Part Type">GPU</td>
+    <td div="ID">GPU_Example_001</td>
+    <td div="In Game">Yes</td>
+    <td div="Manufacturer">ExampleCorp</td>
+    <td div="Part Name">Example GPU</td>
+    <td div="Price">1500</td>
+  </tr>
 </table>
 ```
+ 
+PCBS2.XPL builds the property header automatically at runtime from the `div="..."` attributes of each row, so mod authors only need to write the data rows.
 
 
 ### Format Rules
-
-- **Property Name**: Header `<td>` text and the `div="..."` attribute of the matching data cell must agree. Both are case-sensitive
+ 
+- **Property Name**: Set via the `div="..."` attribute on each data cell. Case-sensitive
 - **Property Value**: Goes between `<td>` and `</td>` on the data row
 - **Required Fields**: `Part Type`, `ID`, and `In Game = Yes` must be present, otherwise the row is silently skipped by the game's reader
-- **Multiple Parts**: A single XML may contain multiple data rows sharing the same header - useful for shipping a whole pack as one file. All parts in one XML must share the same `Part Type`
+- **Multiple Parts**: A single XML may contain multiple data rows - useful for shipping a whole pack as one file. All parts in one XML must share the same `Part Type`
 - **Overrides**: A row whose `ID` matches an existing vanilla or modded part overwrites that part rather than adding a new one
 
 
@@ -176,9 +165,8 @@ PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses 
 2. **Wait for the Game**: A background thread waits for `GameAssembly.dll` to load, then resolves the IL2CPP runtime API used to look up game classes by name.
 3. **Install the Hook**: MinHook places a single detour on `PartsDatabase.Load`. Method pointers to `PartsDatabase.ImportFromHTML` and the `UnityEngine.TextAsset(CreateOptions, string)` constructor are resolved at the same time.
 4. **Scan Mods**: The `mods/` folder is walked recursively, every `.xml` file found is queued by path.
-5. **Injection**: When the game calls `PartsDatabase.Load()`, the detour first runs the original method (loading every vanilla part). It then iterates the queued mod files: each XML is read from disk, wrapped in a `TextAsset`, and passed to `ImportFromHTML` - the same method the game uses internally for its own part assets.
+5. **Injection**: When the game calls `PartsDatabase.Load()`, the detour first runs the original method (loading every vanilla part). It then iterates the queued mod files: each XML is read from disk, a property header is built from the `div="..."` attributes of the first data row and prepended to the table, the result is wrapped in a `TextAsset`, and passed to `ImportFromHTML` - the same method the game uses internally for its own part assets.
 The game's own `HTMLTableReader` parses the table, the game's own `PartDesc.Create` factory builds the right subclass for each row, and the game's own virtual `ImportProp` dispatch sets every property. PCBS2.XPL never constructs a `PartDesc`, never sets a property, never touches the database directly - it just hands the game a `TextAsset` and lets the vanilla loading code do the rest.
-
 ### Technical Flow
  
 ```
@@ -220,6 +208,7 @@ The game's own `HTMLTableReader` parses the table, the game's own `PartDesc.Crea
    │         ▼                                                   │
    │     For each queued mod XML:                                │
    │       • Read file into memory                               │
+   │       • Inject property header from div="..." attributes    │
    │       • Wrap content in a TextAsset                         │
    │       • Call PartsDatabase.ImportFromHTML(asset)            │
    │         │                                                   │
@@ -263,8 +252,8 @@ Launch the game and the part appears in the shop and inventory.
  
 ### Note 2: One or Multiple Parts Per File
  
-A mod XML can contain a single part or many. The game's `HTMLTableReader` parses the header row once and then iterates every data row beneath it, so each `<tr>` after the header becomes one part.  
-The catch: every row in the file shares the same column header, so all parts in one XML must be of the same `Part Type`. A pack of fifteen GPUs in one XML is fine; mixing one GPU and one CPU in the same file is not - use two files instead.
+A mod XML can contain a single part or many. PCBS2.XPL builds the property header from the first data row's `div="..."` attributes, then every `<tr>` in the file becomes one part.  
+The catch: all parts in one XML must be of the same `Part Type`, since they share the same generated header. A pack of fifteen GPUs in one XML is fine; mixing one GPU and one CPU in the same file is not - use two files instead.
  
  
 ### Note 3: Organizing the mods/ Folder
@@ -351,7 +340,6 @@ Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check i
 **Solutions**:
  
 1. **Check Player.log**. The game's `HTMLTableReader` logs a `Couldn't find parts in <name>` warning when an XML's structure doesn't match what it expects. Open `%USERPROFILE%\AppData\LocalLow\The Irregular Corporation\PC Building Simulator 2\Player.log` and search for "Couldn't find parts" - if present, the XML format is off
-2. **Verify the header row**. The first `<tr>` must contain a `<td>` whose text is exactly `Part Type` (case-sensitive). Without it, the reader skips the entire file
 3. **Verify `In Game = Yes`**. Rows where `In Game` is empty, `No`, or missing are silently dropped by the game's loader, even if everything else is correct
 4. **Confirm the `Part Type` is supported**. If the type is one of the [unsupported values](#-currently-unsupported-part-type-values), the part will never appear - the loader has no class to instantiate
 5. **Watch for ImportFromHTML crashes**. `[-] ImportFromHTML crashed for: <file>` in `PCBS2.XPL.log` indicates the XML caused an exception inside the game's loader. Compare structurally against a known-working PCBS2 Part Creator export
