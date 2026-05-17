@@ -60,7 +60,7 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and feeds them thro
    Default Epic Games path: `...\Epic Games\PCBuildingSimulator2\`
 3. Launch the game once. **PCBS2.XPL** will create a `mods/` folder in the same directory if it doesn't exist.
 
-> **Note**If you already have [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator) installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place **PCBS2.XPL** as the new `version.dll`. **PCBS2.XPL** will chain-load JellysSockets automatically - see [Note 6](#note-6-running-alongside-jellys-socket-creator).
+> **Note**: If you already have [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator) installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place **PCBS2.XPL** as the new `version.dll`. **PCBS2.XPL** will chain-load JellysSockets automatically - see [Note 6](#note-6-running-alongside-jellys-socket-creator).
 
 
 ### Step 2: Add Mod Files
@@ -237,7 +237,7 @@ The `Part Type` field of each mod row must match a string the game's `PartDesc.C
 | Accessories     | `Decoration`, `RamHeatsink`, `PowerSplitter`, `PowerAdapter`                                   |
 | Software & misc | `Program`, `USB Drive`, `Tool`, `Tool Upgrade`                                                 |
  
-> **Note** Strings are case-sensitive and the spaces in multi-word values (`Air Cooler`, `Case Fan`, `Tool Upgrade`, `USB Drive`) are part of the name - omit or replace them and the game will reject the row.
+> **Note**: Strings are case-sensitive and the spaces in multi-word values (`Air Cooler`, `Case Fan`, `Tool Upgrade`, `USB Drive`) are part of the name - omit or replace them and the game will reject the row.
 
 ## 📖 Usage Notes
  
