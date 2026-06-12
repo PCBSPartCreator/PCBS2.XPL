@@ -1,7 +1,6 @@
 #include "config.h"
 #include "logger.h"
 #include <windows.h>
-#include <fstream>
 
 static void ScanDirectory(const std::string& dir, std::vector<ModFile>& out) {
     std::string searchPattern = dir + "\\*";
@@ -61,4 +60,87 @@ std::vector<ModFile> Config_ScanMods(const std::string& gameDir) {
         Logger::Log("[+] Total mod files: " + std::to_string(mods.size()));
     }
     return mods;
+}
+
+// --- SaveFix config ---------------------------------------------------------
+static std::string Trim(const std::string& s) {
+    size_t a = s.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return {};
+    size_t b = s.find_last_not_of(" \t\r\n");
+    return s.substr(a, b - a + 1);
+}
+
+static bool ParseBool(const std::string& v, bool fallback) {
+    std::string s = v;
+    for (auto& c : s) c = (char)tolower((unsigned char)c);
+    if (s == "true" || s == "1" || s == "yes" || s == "on")  return true;
+    if (s == "false" || s == "0" || s == "no" || s == "off") return false;
+    return fallback;
+}
+
+bool Config_IsSaveFixEnabled(const std::string& gameDir) {
+    const std::string cfgDir = gameDir + "config";
+    const std::string cfgPath = cfgDir + "\\PCBS2.XPL.cfg";
+
+    if (GetFileAttributesA(cfgDir.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        if (CreateDirectoryA(cfgDir.c_str(), nullptr))
+            Logger::Log("[+] Created config folder: " + cfgDir);
+        else
+            Logger::Log("[-] Failed to create config folder. Error: " + std::to_string(GetLastError()));
+    }
+
+    // First run: write the default config.
+    if (GetFileAttributesA(cfgPath.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        static const char kDefault[] =
+            "# PCBS2.XPL configuration\r\n"
+            "# SaveFix=true  -> remove parts from saves whose mod is no longer installed\r\n"
+            "# SaveFix=false -> leave saves untouched (part injection still runs)\r\n"
+            "SaveFix=true\r\n";
+        HANDLE h = CreateFileA(cfgPath.c_str(), GENERIC_WRITE, 0, nullptr,
+            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h != INVALID_HANDLE_VALUE) {
+            DWORD w = 0;
+            WriteFile(h, kDefault, (DWORD)(sizeof(kDefault) - 1), &w, nullptr);
+            CloseHandle(h);
+            Logger::Log("[+] Created default config: " + cfgPath);
+        }
+        else {
+            Logger::Log("[-] Could not create config file (defaulting SaveFix=true): " + cfgPath);
+        }
+        return true;
+    }
+
+    HANDLE h = CreateFileA(cfgPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        Logger::Log("[-] Could not open config file (defaulting SaveFix=true): " + cfgPath);
+        return true;
+    }
+    LARGE_INTEGER sz{};
+    std::string data;
+    if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0) {
+        data.resize((size_t)sz.QuadPart);
+        DWORD got = 0;
+        ::ReadFile(h, &data[0], (DWORD)sz.QuadPart, &got, nullptr);
+        data.resize(got);
+    }
+    CloseHandle(h);
+
+    bool saveFix = true;   // default if key absent
+    size_t start = 0;
+    while (start < data.size()) {
+        size_t nl = data.find('\n', start);
+        size_t end = (nl == std::string::npos) ? data.size() : nl;
+        std::string t = Trim(data.substr(start, end - start));
+        start = (nl == std::string::npos) ? data.size() : nl + 1;
+
+        if (t.empty() || t[0] == '#' || t[0] == ';') continue;
+        size_t eq = t.find('=');
+        if (eq == std::string::npos) continue;
+        std::string key = Trim(t.substr(0, eq));
+        std::string val = Trim(t.substr(eq + 1));
+        for (auto& c : key) c = (char)tolower((unsigned char)c);
+        if (key == "savefix") saveFix = ParseBool(val, true);
+    }
+    return saveFix;
 }

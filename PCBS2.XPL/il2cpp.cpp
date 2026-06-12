@@ -17,6 +17,10 @@ DEF_IL2CPP(il2cpp_runtime_class_init)
 DEF_IL2CPP(il2cpp_gchandle_new)
 DEF_IL2CPP(il2cpp_thread_attach)
 DEF_IL2CPP(il2cpp_runtime_object_init)
+DEF_IL2CPP(il2cpp_thread_current)
+DEF_IL2CPP(il2cpp_thread_detach)
+DEF_IL2CPP(il2cpp_array_new)
+DEF_IL2CPP(il2cpp_runtime_invoke)
 #undef DEF_IL2CPP
 
 bool IL2CPP_Init(HMODULE hGA) {
@@ -39,9 +43,17 @@ bool IL2CPP_Init(HMODULE hGA) {
         LOAD(il2cpp_gchandle_new)
         LOAD(il2cpp_thread_attach)
         LOAD(il2cpp_runtime_object_init)
+        LOAD(il2cpp_array_new)
+        LOAD(il2cpp_runtime_invoke)
 #undef LOAD
 
-        Logger::Log("[+] IL2CPP API loaded");
+        // Best-effort: the GC thread-attach guard in hooks.cpp degrades if absent.
+        il2cpp_thread_current = (t_il2cpp_thread_current)GetProcAddress(hGA, "il2cpp_thread_current");
+    il2cpp_thread_detach = (t_il2cpp_thread_detach)GetProcAddress(hGA, "il2cpp_thread_detach");
+    if (!il2cpp_thread_current || !il2cpp_thread_detach)
+        Logger::Log("[!] Optional thread API missing; GC thread-attach guard degraded");
+
+    Logger::Log("[+] IL2CPP API loaded");
     return true;
 }
 

@@ -9,6 +9,7 @@ struct Il2CppClass;
 struct Il2CppMethodInfo;
 struct Il2CppFieldInfo;
 struct Il2CppObject;
+struct Il2CppException;
 
 struct Il2CppString {
     void* klass;
@@ -36,6 +37,13 @@ DECL_IL2CPP(void, il2cpp_runtime_class_init, Il2CppClass*);
 DECL_IL2CPP(uint32_t, il2cpp_gchandle_new, void*, bool);
 DECL_IL2CPP(void*, il2cpp_thread_attach, Il2CppDomain*);
 DECL_IL2CPP(void, il2cpp_runtime_object_init, Il2CppObject*);
+
+// Optional thread API for registering foreign threads with the GC.
+// Best-effort; may be null on some builds.
+DECL_IL2CPP(void*, il2cpp_thread_current);
+DECL_IL2CPP(void, il2cpp_thread_detach, void*);
+DECL_IL2CPP(void*, il2cpp_array_new, Il2CppClass*, uintptr_t);
+DECL_IL2CPP(Il2CppObject*, il2cpp_runtime_invoke, const Il2CppMethodInfo*, void*, void**, Il2CppException**);
 
 #undef DECL_IL2CPP
 

@@ -8,3 +8,6 @@ struct ModFile {
 };
 
 std::vector<ModFile> Config_ScanMods(const std::string& gameDir);
+
+// Reads config/PCBS2.XPL.cfg; writes a default (SaveFix=true) if missing.
+bool Config_IsSaveFixEnabled(const std::string& gameDir);

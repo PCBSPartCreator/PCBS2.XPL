@@ -1,4 +1,4 @@
 #include "logger.h"
 
-std::ofstream Logger::s_file;
-std::mutex    Logger::s_mutex;
+HANDLE     Logger::s_file = INVALID_HANDLE_VALUE;
+std::mutex Logger::s_mutex;
