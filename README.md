@@ -4,7 +4,7 @@
 
 # PC Building Simulator 2 - XML Part Loader
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](../../releases)
+[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](../../releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
 [![Game](https://img.shields.io/badge/game-PC%20Building%20Simulator%202-orange.svg)](https://www.pcbuildingsim.com/)
@@ -12,7 +12,8 @@
 
 A `version.dll` proxy that injects custom parts into PC Building Simulator 2 at startup.  
 Designed as a companion to [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102), which produces compatible XML files through a visual editor.  
-PCBS2.XPL reads XML part definitions from the `mods/` folder and feeds them through the game's own `ImportFromHTML` pipeline, so they appear alongside the built-in catalog as if they were vanilla content.
+PCBS2.XPL reads XML part definitions from the `mods/` folder and feeds them through the game's own `ImportFromHTML` pipeline, so they appear alongside the built-in catalog as if they were vanilla content.  
+It also ships **SaveFix**, which keeps your saves loadable after a part mod is removed by cleanly pruning the leftover parts on load.
 
 ##
 
@@ -38,6 +39,10 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and feeds them thro
 - ✅ **Folder Structure**: Mods are scanned recursively, so they can be organized into subfolders by category (`mods/GPU/`, `mods/CPU/`, ...) or kept flat - both work
 - ✅ **Multiple Parts per File**: A single XML can carry many parts of the same type, matching the game's own part-pack layout
 - ✅ **Vanilla Override**: Mods that reuse a vanilla `ID` override that specific part - useful for balance tweaks
+- ✅ **SaveFix**: Removing a part mod no longer breaks your saves - on load, parts left behind by an uninstalled mod are pruned cleanly (including water-cooling loops and tubing), so the save opens normally and the freed slots stay buildable
+- ✅ **Configurable**: A self-creating `config/PCBS2.XPL.cfg` lets you toggle SaveFix on or off (`SaveFix=true` by default)
+- ✅ **Reliable Startup**: Bootstrap is deferred onto a real game thread via an `il2cpp_runtime_invoke` hook, avoiding the IL2CPP/GC race that could crash the first launch after a reboot
+- ✅ **Lightweight**: Size-optimized release build (~a third smaller than before) that still ships as a single drop-in `version.dll`
 - ✅ **Companion Tool**: XML files can be generated visually with [PCBS2 Part Creator](https://www.nexusmods.com/pcbuildingsimulator2/mods/102)
 - ✅ **Safe Injection**: SEH-guarded database calls prevent a malformed mod from crashing the game
 - ✅ **Detailed Logging**: Per-mod status written to `PCBS2.XPL.log` next to the executable
@@ -58,7 +63,7 @@ PCBS2.XPL reads XML part definitions from the `mods/` folder and feeds them thro
 1. Download the latest version from [NexusMods](https://www.nexusmods.com/pcbuildingsimulator2/mods/135)
 2. Copy it into your PC Building Simulator 2 directory, next to `PCBS2.exe`.  
    Default Epic Games path: `...\Epic Games\PCBuildingSimulator2\`
-3. Launch the game once. **PCBS2.XPL** will create a `mods/` folder in the same directory if it doesn't exist.
+3. Launch the game once. **PCBS2.XPL** will create a `mods/` folder in the same directory if it doesn't exist, along with a `config/PCBS2.XPL.cfg` you can use to toggle SaveFix.
 
 > **Note**: If you already have [Jelly's Socket Creator](https://github.com/ZeOs360/JellysSocketCreator) installed (also as `version.dll`), rename it to `JellysSockets.dll` first, then place **PCBS2.XPL** as the new `version.dll`. **PCBS2.XPL** will chain-load JellysSockets automatically - see [Note 6](#note-6-running-alongside-jellys-socket-creator).
 
@@ -76,18 +81,47 @@ Check `PCBS2.XPL.log` next to the game executable for entries like:
 
 ```text
 [+] IL2CPP API loaded
+[+] runtime_invoke hooked, bootstrap deferred to game thread
+[+] Loaded JellysSockets.dll
 [+] TextAsset .ctor(CreateOptions, string) resolved
 [+] Hooked PartsDatabase.Load
-[+] Found mod file: AirCooledGPU_AMD_FirePro_S9170.xml
-[+] Found mod file: CPU_Ryzen_9_9950X3D2.xml
-[+] Total mod files: 2
-[+] 2 mods queued
+[+] Hooked PartsDatabase.ImportFromHTML
+[+] SaveFix ready
+[+] Hooked SaveLoadSystem.LoadPC
+[+] Hooked SaveLoadSystem.LoadGame
+[+] Hooked PartInstance.FixForVersion
+[+] Hooked VirtualComputer.CheckBiosError
+[+] Hooked VirtualComputer.UpdateTabletApps
+[+] Hooked OS.OnStartup
+[+] Hooked WalkingState.SetSelected
+[+] Hooked ComputerSave.GetBaseRAMInstance
+[+] Hooked Slot.HandleRadiator
+[+] Hooked ComputerSave.OnAfterDeserialize
+[+] Hooked CalendarDay.UpdateEvents
+[+] Hooked Job.OnDeserialization
+[+] Found mod file: AirCooledGPU.xml
+[+] Found mod file: CPU.xml
+[+] Found mod file: Motherboard.xml
+[+] Found mod file: PSU.xml
+[+] Found mod file: RAM.xml
+[+] Found mod file: Storage.xml
+[+] Total mod files: 6
+[+] 6 mods queued
 [+] Ready
-[+] Injected dynamic header for: AirCooledGPU_AMD_FirePro_S9170.xml
-[+] Imported: AirCooledGPU_AMD_FirePro_S9170.xml
-[+] Injected dynamic header for: CPU_Ryzen_9_9950X3D2.xml
-[+] Imported: CPU_Ryzen_9_9950X3D2.xml
-[=] Mod load complete: 2 imported, 0 failed
+[+] Injected dynamic header for: AirCooledGPU.xml
+[+] Imported: AirCooledGPU.xml
+[+] Injected dynamic header for: CPU.xml
+[+] Imported: CPU.xml
+[+] Injected dynamic header for: Motherboard.xml
+[+] Imported: Motherboard.xml
+[+] Injected dynamic header for: PSU.xml
+[+] Imported: PSU.xml
+[+] Injected dynamic header for: RAM.xml
+[+] Imported: RAM.xml
+[+] Injected dynamic header for: Storage.xml
+[+] Imported: Storage.xml
+[=] Mod load complete: 6 imported, 0 failed
+[=] Loaded Parts: 3050
 ```
 
 ## 🛠️ Building from Source
@@ -113,10 +147,10 @@ The project targets x64 only - PC Building Simulator 2 is a 64-bit IL2CPP Unity 
 
 | File           | Purpose                                                  |
 |----------------|----------------------------------------------------------|
-| `dllmain.cpp`  | `version.dll` export forwards, DllMain, init thread      |
+| `dllmain.cpp`  | `version.dll` export forwards, DllMain, init thread, deferred bootstrap via `il2cpp_runtime_invoke` |
 | `il2cpp.*`     | IL2CPP API loader and class/method lookup helpers        |
-| `hooks.*`      | MinHook setup for `PartsDatabase.Load` and `ImportFromHTML` dispatch |
-| `config.*`     | Recursive `mods/` scan and example-file generation       |
+| `hooks.*`      | MinHook setup for `PartsDatabase.Load` / `ImportFromHTML` dispatch and the SaveFix hooks (`SaveLoadSystem.LoadPC` / `LoadGame`, `PartInstance.FixForVersion`) |
+| `config.*`     | Recursive `mods/` scan, example-file generation, and `config/PCBS2.XPL.cfg` parsing (SaveFix toggle) |
 | `logger.*`     | Thread-safe logger writing to `PCBS2.XPL.log`            |
 
 
@@ -159,19 +193,21 @@ PCBS2.XPL builds the property header automatically at runtime from the `div="...
 
 ## 🔬 How It Works
  
-PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses [MinHook](https://github.com/TsudaKageyu/minhook) to intercept a single method of the game's part database and hand it the mod XMLs.
+PCBS2.XPL is a proxy DLL that loads into the game process at startup, then uses [MinHook](https://github.com/TsudaKageyu/minhook) to intercept a few methods of the game and hand it the mod XMLs - and, for SaveFix, to clean up save files before the game reads them.
  
 1. **Proxy Load**: PCBS2.XPL is named `version.dll` and placed next to `PCBS2.exe`. Windows loads DLLs from the program's own folder before the system folder, so the game loads PCBS2.XPL instead of the real one. All exports are forwarded to `C:\Windows\System32\version.dll`.
 2. **Wait for the Game**: A background thread waits for `GameAssembly.dll` to load, then resolves the IL2CPP runtime API used to look up game classes by name.
-3. **Install the Hook**: MinHook places a single detour on `PartsDatabase.Load`. Method pointers to `PartsDatabase.ImportFromHTML` and the `UnityEngine.TextAsset(CreateOptions, string)` constructor are resolved at the same time.
-4. **Scan Mods**: The `mods/` folder is walked recursively, every `.xml` file found is queued by path.
-5. **Injection**: When the game calls `PartsDatabase.Load()`, the detour first runs the original method (loading every vanilla part). It then iterates the queued mod files: each XML is read from disk, a property header is built from the `div="..."` attributes of the first data row and prepended to the table, the result is wrapped in a `TextAsset`, and passed to `ImportFromHTML` - the same method the game uses internally for its own part assets.
+3. **Defer Bootstrap to a Game Thread**: Doing IL2CPP work from the native init thread is unsafe - that thread is invisible to the runtime's garbage collector, which was the cause of the old cold-start crash. PCBS2.XPL therefore installs a single detour on `il2cpp_runtime_invoke` and stops there. The first time the game invokes a managed method - on a real, GC-tracked thread - the detour runs the bootstrap below exactly once (CAS-gated, with retries) and then steps aside.
+4. **Install the Hooks**: MinHook places detours on `PartsDatabase.Load` (part injection) and on `SaveLoadSystem.LoadPC`, `SaveLoadSystem.LoadGame`, and `PartInstance.FixForVersion` (SaveFix). Method pointers to `PartsDatabase.ImportFromHTML` and the `UnityEngine.TextAsset(CreateOptions, string)` constructor are resolved at the same time.
+5. **Scan Mods**: The `mods/` folder is walked recursively, every `.xml` file found is queued by path.
+6. **Injection**: When the game calls `PartsDatabase.Load()`, the detour first runs the original method (loading every vanilla part). It then iterates the queued mod files: each XML is read from disk, a property header is built from the `div="..."` attributes of the first data row and prepended to the table, the result is wrapped in a `TextAsset`, and passed to `ImportFromHTML` - the same method the game uses internally for its own part assets.
 The game's own `HTMLTableReader` parses the table, the game's own `PartDesc.Create` factory builds the right subclass for each row, and the game's own virtual `ImportProp` dispatch sets every property. PCBS2.XPL never constructs a `PartDesc`, never sets a property, never touches the database directly - it just hands the game a `TextAsset` and lets the vanilla loading code do the rest.
+7. **SaveFix**: Once the full part list is known, the `SaveLoadSystem` detours inspect each save as it loads and remove any part whose `ID` is no longer present in the database - the leftover of an uninstalled mod - before the game can choke on it. Emptied slots are nulled and any water-cooling loops or tubing that referenced the removed part are pruned, so the rest of the build stays intact. The whole pass is SEH-guarded: if anything unexpected happens, the save is left exactly as it was. SaveFix can be disabled in `config/PCBS2.XPL.cfg`.
 ### Technical Flow
  
 ```
    ┌─────────────────────────────────────────────────────────────┐
-   │  Setup Phase                                                │
+   │ Setup Phase  (native init thread)                           │
    ├─────────────────────────────────────────────────────────────┤
    │                                                             │
    │     Game starts                                             │
@@ -185,24 +221,32 @@ The game's own `HTMLTableReader` parses the table, the game's own `PartDesc.Crea
    │         ▼                                                   │
    │     Resolve IL2CPP runtime                                  │
    │         │                                                   │
-   │         ├─────────────────────────┐                         │
-   │         ▼                         ▼                         │
-   │     Scan mods/ recursively   Install MinHook                │
-   │     into queue               detour on PartsDatabase.Load   │
+   │         ▼                                                   │
+   │     Hook il2cpp_runtime_invoke, defer the rest              │
    │                                                             │
    └─────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
    ┌─────────────────────────────────────────────────────────────┐
-   │  Injection Phase                                            │
+   │ Bootstrap Phase  (first managed call, GC-tracked thread)    │
    ├─────────────────────────────────────────────────────────────┤
    │                                                             │
-   │     Game calls PartsDatabase.Load()                         │
+   │     runtime_invoke detour fires once (CAS-gated)            │
    │         │                                                   │
-   │         ▼                                                   │
-   │     Detour fires                                            │
-   │         │                                                   │
-   │         ▼                                                   │
+   │         ├─────────────────┐                                 │
+   │         ▼                 ▼                                 │
+   │     Scan mods/         Install MinHook detours:             │
+   │     recursively          • PartsDatabase.Load               │
+   │     into queue           • SaveLoadSystem.LoadPC / LoadGame │
+   │                          • PartInstance.FixForVersion       │
+   │                                                             │
+   └─────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+   ┌─────────────────────────────────────────────────────────────┐
+   │ Injection Phase  (on PartsDatabase.Load)                    │
+   ├─────────────────────────────────────────────────────────────┤
+   │                                                             │
    │     Run original Load() - vanilla parts populate m_parts    │
    │         │                                                   │
    │         ▼                                                   │
@@ -213,9 +257,30 @@ The game's own `HTMLTableReader` parses the table, the game's own `PartDesc.Crea
    │       • Call PartsDatabase.ImportFromHTML(asset)            │
    │         │                                                   │
    │         ▼                                                   │
-   │     Vanilla pipeline parses rows, builds PartDescs,         │
-   │     adds them to m_parts - mods are now indistinguishable   │
-   │     from built-in content                                   │
+   │     Vanilla pipeline parses rows, builds PartDescs, adds    │
+   │     them to m_parts - mods now indistinguishable from       │
+   │     built-in content                                        │
+   │                                                             │
+   └─────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+   ┌─────────────────────────────────────────────────────────────┐
+   │ SaveFix Phase  (on every save load)                         │
+   ├─────────────────────────────────────────────────────────────┤
+   │                                                             │
+   │     Game calls SaveLoadSystem.LoadPC / LoadGame             │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Scan the save for parts whose ID is no longer in        │
+   │     the loaded database (leftovers of a removed mod)        │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Prune them: null emptied slots, drop water-cooling      │
+   │     loops / pipes that referenced them                      │
+   │         │                                                   │
+   │         ▼                                                   │
+   │     Hand the cleaned save to the original method            │
+   │     (SEH-guarded - on error the save is left untouched)     │
    │                                                             │
    └─────────────────────────────────────────────────────────────┘
 ```
@@ -299,18 +364,34 @@ PCBS2.XPL chain-loads it on startup - both run side by side.
 ### Note 7: Updating or Removing Mods
  
 Modded parts are loaded fresh on every launch, so updating a mod is just replacing its XML file. Removing a mod is deleting the XML.  
-Save files reference parts by `ID`, so if a save was made with a modded part and the mod is later removed, the save will fail to load that specific part - keep `ID`s stable across updates.
+Save files reference parts by `ID`. With **SaveFix** enabled (the default), removing a mod no longer breaks the save - on load, any part whose `ID` is no longer present is pruned out, emptied slots are cleared, and water-cooling loops or pipes that used the part are cleaned up, so the save still opens and the freed slots can be rebuilt. Keeping `ID`s stable across updates is still good practice, since a changed `ID` is treated as a removed part.  
+SaveFix can be turned off in `config/PCBS2.XPL.cfg` (`SaveFix=false`); with it disabled, a save that references a missing modded part will fail to load that part, as before. See [Note 9](#note-9-savefix).
  
  
 ### Note 8: Duplicate IDs Across Files
  
 If two XML files declare the same `ID`, the file loaded last wins (the earlier one is effectively overwritten).  
 File load order follows the recursive directory walk, which is not strictly alphabetical. For predictable behavior, ensure every mod uses a unique `ID` unless you specifically intend to override another mod.
+ 
+ 
+### Note 9: SaveFix
+ 
+SaveFix keeps your saves loadable when a part mod is removed or its `ID` changes. Without it, the game throws as soon as it tries to load a part `ID` that no longer exists in the database, and the save won't open.
+ 
+On every save load, SaveFix:
+ 
+- Removes parts whose `ID` is no longer present - across the active PC plus parts in storage, on the bench, and being carried
+- Clears the slots those parts occupied, so they read as empty and can be rebuilt
+- Prunes any custom water-cooling loops and the tubing connected to a removed part, leaving the rest of the loop intact
+ 
+It only ever runs once the full part database has loaded, so it can never remove a part by mistake, and the entire pass is SEH-guarded - if anything unexpected happens, the save is left untouched. Every cleanup is recorded in `PCBS2.XPL.log`. To disable it, set `SaveFix=false` in `config/PCBS2.XPL.cfg` (created automatically on first launch).
+ 
+> **Save still won't load?** If a save doesn't open and SaveFix can't rescue it, please send me your `Player.log` on Discord so I can look into a fix. You'll find it at `%USERPROFILE%\AppData\LocalLow\Epic Games Publishing\PCBS2\Player.log`.
 
 
 ## 🐛 Troubleshooting
  
-Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check it first - the prefixes (`[+]` success, `[~]` info, `[!]` warning, `[-]` error, `[=]` summary) indicate the severity of each event. For issues with the parts themselves, the game's own `Player.log` (under `%USERPROFILE%\AppData\LocalLow\The Irregular Corporation\PC Building Simulator 2\`) often contains additional clues from the vanilla loading pipeline. If neither log helps, the categories below cover the common failure modes.
+Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check it first - the prefixes (`[+]` success, `[~]` info, `[!]` warning, `[-]` error, `[=]` summary) indicate the severity of each event. For issues with the parts themselves, the game's own `Player.log` (under `%USERPROFILE%\AppData\LocalLow\Epic Games Publishing\PCBS2\`) often contains additional clues from the vanilla loading pipeline. If neither log helps, the categories below cover the common failure modes.
  
  
 ### Game Doesn't Start
@@ -339,18 +420,18 @@ Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check i
  
 **Solutions**:
  
-1. **Check Player.log**. The game's `HTMLTableReader` logs a `Couldn't find parts in <name>` warning when an XML's structure doesn't match what it expects. Open `%USERPROFILE%\AppData\LocalLow\The Irregular Corporation\PC Building Simulator 2\Player.log` and search for "Couldn't find parts" - if present, the XML format is off
+1. **Check Player.log**. The game's `HTMLTableReader` logs a `Couldn't find parts in <name>` warning when an XML's structure doesn't match what it expects. Open `%USERPROFILE%\AppData\LocalLow\Epic Games Publishing\PCBS2\Player.log` and search for "Couldn't find parts" - if present, the XML format is off
 3. **Verify `In Game = Yes`**. Rows where `In Game` is empty, `No`, or missing are silently dropped by the game's loader, even if everything else is correct
 4. **Confirm the `Part Type` is supported**. If the type is one of the [unsupported values](#-currently-unsupported-part-type-values), the part will never appear - the loader has no class to instantiate
 5. **Watch for ImportFromHTML crashes**. `[-] ImportFromHTML crashed for: <file>` in `PCBS2.XPL.log` indicates the XML caused an exception inside the game's loader. Compare structurally against a known-working PCBS2 Part Creator export
 ### Cold-Start Crash
  
-**Symptoms**: The first launch after a reboot crashes; subsequent launches work fine.
+**Symptoms**: The first launch after a reboot crashes; subsequent launches work fine. (Fixed in 1.0.2.)
  
 **Solutions**:
  
-- This is a race between MinHook's thread-suspension logic and Unity's thread pool initialization. PCBS2.XPL polls for `PartsDatabase` to delay hook installation until IL2CPP metadata is populated, which fixes it in nearly all cases
-- If it still occurs, the timing window may be tighter on your system. Open an [issue](../../issues) with the log and approximate hardware specs
+- This was caused by PCBS2.XPL doing IL2CPP work on its native init thread, which the runtime's garbage collector doesn't track. As of 1.0.2 the bootstrap is deferred onto a real, GC-tracked game thread via an `il2cpp_runtime_invoke` hook, which resolves it - make sure you're on 1.0.2 or newer
+- If it still occurs on a current build, the timing window may be unusual on your system. Open an [issue](../../issues) with the log and approximate hardware specs
 ### "Class Not Found" Errors
  
 **Symptoms**: Log lines like `[-] PartsDatabase class not found` or `[-] UnityEngine.TextAsset class not found`.
