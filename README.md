@@ -20,13 +20,13 @@ It also ships **SaveFix**, which keeps your saves loadable after a part mod is r
 <a href="#-features">✨ Features</a> • 
 <a href="#-requirements">🔧 Requirements</a> • 
 <a href="#-installation">📦 Installation</a> • 
-<a href="#-building-from-source">🛠️ Building from Source</a> • 
+<a href="#-building-from-source">🛠 Building from Source</a> • 
 <a href="#-mod-xml-format">📄 Mod XML Format</a> • 
 <a href="#-how-it-works">🔬 How It Works</a> • 
 <a href="#-part-types">🌟 Part Types</a> • 
 <a href="#-usage-notes">📖 Usage Notes</a> • 
 <a href="#-troubleshooting">🐛 Troubleshooting</a> • 
-<a href="#-credits">©️ Credits</a>
+<a href="#-credits">© Credits</a>
 
 </div>
 
@@ -124,7 +124,7 @@ Check `PCBS2.XPL.log` next to the game executable for entries like:
 [=] Loaded Parts: 3050
 ```
 
-## 🛠️ Building from Source
+## 🛠 Building from Source
 
 ### Requirements
 
@@ -386,7 +386,7 @@ On every save load, SaveFix:
  
 It only ever runs once the full part database has loaded, so it can never remove a part by mistake, and the entire pass is SEH-guarded - if anything unexpected happens, the save is left untouched. Every cleanup is recorded in `PCBS2.XPL.log`. To disable it, set `SaveFix=false` in `config/PCBS2.XPL.cfg` (created automatically on first launch).
  
-> **Save still won't load?** If a save doesn't open and SaveFix can't rescue it, please send me your `Player.log` on Discord so I can look into a fix. You'll find it at `%USERPROFILE%\AppData\LocalLow\Epic Games Publishing\PCBS2\Player.log`.
+> **Save still won't load?** If a save doesn't open and SaveFix can't rescue it, please send me your `Player.log` on [Discord](https://discord.gg/KXNcSmyaU) so I can look into a fix. You'll find it at `%USERPROFILE%\AppData\LocalLow\Epic Games Publishing\PCBS2\Player.log`.
 
 
 ## 🐛 Troubleshooting
@@ -459,7 +459,7 @@ Most issues can be diagnosed from `PCBS2.XPL.log` in the game directory. Check i
 - A missing or invalid `Asset Path` is a frequent culprit: the part loads, but crashes the game when it later tries to instantiate the (nonexistent) prefab
 - If the crash persists with a single isolated XML, the file is the cause - report it to the mod's author
 
-## ©️ Credits
+## © Credits
 
 PCBS2.XPL bundles the following third-party libraries:
  
