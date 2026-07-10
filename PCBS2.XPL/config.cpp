@@ -1,6 +1,7 @@
 #include "config.h"
 #include "logger.h"
 #include <windows.h>
+#include <cctype>
 
 static void ScanDirectory(const std::string& dir, std::vector<ModFile>& out) {
     std::string searchPattern = dir + "\\*";
@@ -21,7 +22,7 @@ static void ScanDirectory(const std::string& dir, std::vector<ModFile>& out) {
 
         if (name.size() < 4) continue;
         std::string ext = name.substr(name.size() - 4);
-        for (auto& c : ext) c = (char)tolower(c);
+        for (auto& c : ext) c = (char)tolower((unsigned char)c);
         if (ext != ".xml") continue;
 
         out.push_back({ fullPath, name });

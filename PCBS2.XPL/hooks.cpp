@@ -1,8 +1,8 @@
 ﻿#include "hooks.h"
 #include "logger.h"
 #include "il2cpp.h"
+#include "menuText.h"
 #include <MinHook.h>
-#include <mutex>
 #include <set>
 #include <atomic>
 #include <string>
@@ -72,7 +72,13 @@ static void ForEachTd(const std::string& row, F fn) {
 }
 
 // --- Part ID collection (in-memory whitelist; no disk dump) -----------------
-static std::mutex   g_idMutex;
+struct ScopedExclusiveSrwLock {
+    SRWLOCK* lock;
+    explicit ScopedExclusiveSrwLock(SRWLOCK* l) : lock(l) { AcquireSRWLockExclusive(lock); }
+    ~ScopedExclusiveSrwLock() { ReleaseSRWLockExclusive(lock); }
+};
+
+static SRWLOCK      g_idLock = SRWLOCK_INIT;
 static int          g_totalIdCount = 0;
 static bool         g_idsComplete = false;
 static std::set<std::string> g_validIds;
@@ -118,7 +124,7 @@ static bool IsIdColumn(const std::string& col) {
 
 // Reads the ID column out of each <td div="Col">value</td> data row.
 static void CollectPartIds(const std::string& html, const std::string& source) {
-    std::lock_guard<std::mutex> lock(g_idMutex);
+    ScopedExclusiveSrwLock lock(&g_idLock);
     if (g_idsComplete) return;
 
     int count = 0;
@@ -305,7 +311,7 @@ static void Hook_PDB_Load(void* self) {
     g_originalLoad(self);
     LoadAllMods(self);
 
-    std::lock_guard<std::mutex> lock(g_idMutex);
+    ScopedExclusiveSrwLock lock(&g_idLock);
     if (!g_idsComplete) {
         Logger::Log("[=] Loaded Parts: " + std::to_string(g_totalIdCount));
         if (g_validIds.size() < kMinWhitelist)
@@ -754,9 +760,22 @@ static bool IsOrphanGuarded(void* self) {
     if (!self || !g_fixReady || !SaveFixWhitelistOK()) return false;
     return IsOrphan(self);
 }
+
+// IsOrphan only tests whitelist membership, so it can't flag a custom part whose
+// id was harvested from an HTML row that failed to import (e.g. CPU_Custom_*):
+// the id is "valid" but GetPart returns null and the original NREs. SEH around
+// the original catches that deref so the load isn't aborted.
 static bool Hook_FixForVersion(void* self, int version, bool csOnly, void* mi) {
     if (IsOrphanGuarded(self)) return false;
-    return g_fixForVersion_orig(self, version, csOnly, mi);
+    __try { return g_fixForVersion_orig(self, version, csOnly, mi); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+typedef void (*Inventory_OnInventoryUpdated_t)(void* self, void* mi);
+static Inventory_OnInventoryUpdated_t g_onInventoryUpdated_orig = nullptr;
+static void Hook_OnInventoryUpdated(void* self, void* mi) {
+    __try { g_onInventoryUpdated_orig(self, mi); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 // Net: CheckBiosError NREs after SaveFix nulled an installed part (empty slot,
@@ -1017,6 +1036,10 @@ bool Hooks_Install() {
         "ImportFromHTML", "PartsDatabase.ImportFromHTML"))
         return false;
 
+    // UI hook; do this before the SaveFix early-return so it still works
+    // when SaveFix is disabled via config.
+    VersionTextHook_Install();
+
     // Part injection + ID collection are now live. SaveFix is optional.
     if (!g_saveFixEnabled) {
         Logger::Log("[!] SaveFix disabled via config");
@@ -1050,6 +1073,13 @@ bool Hooks_Install() {
             "PartInstance.FixForVersion");
     else
         Logger::Log("[!] FixForVersion not hooked");
+
+    Il2CppClass* invClass = IL2CPP_FindClass("", "Inventory");
+    if (void* p = ResolveMethod(invClass, "OnInventoryUpdated", 0))
+        InstallHook(p, (void*)Hook_OnInventoryUpdated, (void**)&g_onInventoryUpdated_orig,
+            "Inventory.OnInventoryUpdated");
+    else
+        Logger::Log("[!] Inventory.OnInventoryUpdated not found");
 
     Il2CppClass* csClass = IL2CPP_FindClass("", "ComputerSave");
     Il2CppClass* vcClass = IL2CPP_FindClass("", "VirtualComputer");

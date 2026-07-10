@@ -69,6 +69,9 @@
     <ClInclude Include="..\third_party\minhook\src\hde\table64.h">
       <Filter>third_party\minhook\src\hde</Filter>
     </ClInclude>
+    <ClInclude Include="menuText.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="logger.cpp">
@@ -100,6 +103,9 @@
     </ClCompile>
     <ClCompile Include="..\third_party\minhook\src\hde\hde64.c">
       <Filter>third_party\minhook\src\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="menuText.cpp">
+      <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
